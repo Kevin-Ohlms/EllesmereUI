@@ -2102,15 +2102,6 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2)
 
     if e == "PLAYER_LOGIN" then
         db = EllesmereUI.Lite.NewDB("EllesmereUIAuraBuffRemindersDB", defaults, true)
-        local _eabrSV = _G["EllesmereUIAuraBuffRemindersDB"]
-        if _eabrSV and not _eabrSV._liteMigrated then
-            db:ResetProfile()
-            _eabrSV._liteMigrated = true
-        end
-        if _eabrSV and not _eabrSV._liteMigrated2 then
-            db:ResetProfile()
-            _eabrSV._liteMigrated2 = true
-        end
 
         -- Migration: Source of Magic moved from raidBuffs to auras
         if db.profile.raidBuffs and db.profile.raidBuffs.enabled and db.profile.raidBuffs.enabled.som ~= nil then

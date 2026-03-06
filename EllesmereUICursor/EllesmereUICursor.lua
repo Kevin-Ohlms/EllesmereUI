@@ -92,8 +92,25 @@ local function UpdateVisibility()
         if g.enabled then
             if g.instanceOnly and not InRealInstancedContent() then
                 gcdRoot:Hide()
+                gcdRoot:SetScript("OnUpdate", nil)
             else
                 gcdRoot:Show()
+                -- Re-apply cursor tracking since cursor visibility may have changed
+                if g.attached ~= false then
+                    local cursorVisible = f and f:IsShown()
+                    if cursorVisible then
+                        gcdRoot:SetScript("OnUpdate", nil)
+                        gcdRoot:ClearAllPoints()
+                        gcdRoot:SetPoint("CENTER", f, "CENTER", 0, 0)
+                    else
+                        gcdRoot:SetScript("OnUpdate", function()
+                            local sc = UIParent:GetEffectiveScale()
+                            local mx, my = GetCursorPosition()
+                            gcdRoot:ClearAllPoints()
+                            gcdRoot:SetPoint("CENTER", UIParent, "BOTTOMLEFT", floor(mx / sc + 0.5), floor(my / sc + 0.5))
+                        end)
+                    end
+                end
             end
         end
     end
@@ -104,8 +121,25 @@ local function UpdateVisibility()
         if c.enabled then
             if c.instanceOnly and not InRealInstancedContent() then
                 castRoot:Hide()
+                castRoot:SetScript("OnUpdate", nil)
             else
                 castRoot:Show()
+                -- Re-apply cursor tracking since cursor visibility may have changed
+                if c.attached ~= false then
+                    local cursorVisible = f and f:IsShown()
+                    if cursorVisible then
+                        castRoot:SetScript("OnUpdate", nil)
+                        castRoot:ClearAllPoints()
+                        castRoot:SetPoint("CENTER", f, "CENTER", 0, 0)
+                    else
+                        castRoot:SetScript("OnUpdate", function()
+                            local sc = UIParent:GetEffectiveScale()
+                            local mx, my = GetCursorPosition()
+                            castRoot:ClearAllPoints()
+                            castRoot:SetPoint("CENTER", UIParent, "BOTTOMLEFT", floor(mx / sc + 0.5), floor(my / sc + 0.5))
+                        end)
+                    end
+                end
             end
         end
     end
@@ -252,30 +286,42 @@ local function ApplyTrail()
 
     if not trailEnabled then
         HideTrailDots()
+        if trailContainer then trailContainer:SetScript("OnUpdate", nil) end
         return
     end
 
     if #trailDots == 0 and #trailActive == 0 then
         InitTrailDotPool()
     end
-end
 
-local function TrailOnUpdate(elapsed)
-    if not trailEnabled then return end
-    -- Instance-only: immediately hide all dots, don't let them fade
-    if not isVisible then HideTrailDots(); return end
+    -- Trail runs on trailContainer (always visible) so it keeps ticking
+    -- even when the cursor circle frame is hidden (disabled or instance-only).
+    if trailContainer and not trailContainer:GetScript("OnUpdate") then
+        trailContainer:SetScript("OnUpdate", function(_, elapsed)
+            if not trailEnabled then return end
 
-    local cx, cy = GetCursorPosition()
-    trailTimer = trailTimer + elapsed
-    local dx = cx - trailLastCX
-    local dy = cy - trailLastCY
-    local moved = (dx * dx + dy * dy) ^ 0.5
-    if trailTimer >= TRAIL_DOT_DENSITY and moved >= 0.5 then
-        trailTimer = 0
-        SpawnTrailDot(cx, cy)
-        trailLastCX, trailLastCY = cx, cy
+            local p = ECL.db and ECL.db.profile
+            local circleEnabled = p and p.enabled ~= false
+            local inInstance = not (p and p.instanceOnly) or InRealInstancedContent()
+
+            -- Only spawn new dots when the cursor circle would be visible
+            if circleEnabled and inInstance then
+                local cx, cy = GetCursorPosition()
+                trailTimer = trailTimer + elapsed
+                local dx = cx - trailLastCX
+                local dy = cy - trailLastCY
+                local moved = (dx * dx + dy * dy) ^ 0.5
+                if trailTimer >= TRAIL_DOT_DENSITY and moved >= 0.5 then
+                    trailTimer = 0
+                    SpawnTrailDot(cx, cy)
+                    trailLastCX, trailLastCY = cx, cy
+                end
+            end
+
+            -- Always update (fade/shrink) active dots so they finish animating
+            UpdateTrailDots(elapsed)
+        end)
     end
-    UpdateTrailDots(elapsed)
 end
 
 local function OnUpdate(_, elapsed)
@@ -286,7 +332,6 @@ local function OnUpdate(_, elapsed)
         lastX, lastY = x, y
         f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x, y)
     end
-    TrailOnUpdate(elapsed)
 end
 
 -------------------------------------------------------------------------------
@@ -482,13 +527,27 @@ local function ApplyGCDCircle()
             gcdRoot:Hide()
         end
         if attached then
-            -- Follow cursor: anchor to cursor frame directly (avoids duplicate OnUpdate)
-            gcdRoot:SetScript("OnUpdate", nil)
-            gcdRoot:ClearAllPoints()
-            if f then
+            -- When the cursor circle is visible, anchor directly to it.
+            -- When the cursor circle is hidden (e.g. instance-only outside an instance),
+            -- the cursor frame's OnUpdate stops firing so it no longer tracks the mouse.
+            -- In that case we give the GCD circle its own cursor-tracking OnUpdate.
+            local cursorVisible = f and f:IsShown()
+            if cursorVisible then
+                gcdRoot:SetScript("OnUpdate", nil)
+                gcdRoot:ClearAllPoints()
                 gcdRoot:SetPoint("CENTER", f, "CENTER", 0, 0)
             else
-                gcdRoot:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+                gcdRoot:ClearAllPoints()
+                gcdRoot:SetPoint("CENTER", UIParent, "BOTTOMLEFT", 0, 0)
+                local s = UIParent:GetEffectiveScale()
+                local cx, cy = GetCursorPosition()
+                gcdRoot:SetPoint("CENTER", UIParent, "BOTTOMLEFT", floor(cx / s + 0.5), floor(cy / s + 0.5))
+                gcdRoot:SetScript("OnUpdate", function()
+                    local sc = UIParent:GetEffectiveScale()
+                    local mx, my = GetCursorPosition()
+                    gcdRoot:ClearAllPoints()
+                    gcdRoot:SetPoint("CENTER", UIParent, "BOTTOMLEFT", floor(mx / sc + 0.5), floor(my / sc + 0.5))
+                end)
             end
         else
             gcdRoot:SetScript("OnUpdate", nil)
@@ -716,13 +775,27 @@ local function ApplyCastCircle()
             castRoot:Hide()
         end
         if attached then
-            -- Follow cursor: anchor to cursor frame directly (avoids duplicate OnUpdate)
-            castRoot:SetScript("OnUpdate", nil)
-            castRoot:ClearAllPoints()
-            if f then
+            -- When the cursor circle is visible, anchor directly to it.
+            -- When the cursor circle is hidden (e.g. instance-only outside an instance),
+            -- the cursor frame's OnUpdate stops firing so it no longer tracks the mouse.
+            -- In that case we give the cast circle its own cursor-tracking OnUpdate.
+            local cursorVisible = f and f:IsShown()
+            if cursorVisible then
+                castRoot:SetScript("OnUpdate", nil)
+                castRoot:ClearAllPoints()
                 castRoot:SetPoint("CENTER", f, "CENTER", 0, 0)
             else
-                castRoot:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+                castRoot:ClearAllPoints()
+                castRoot:SetPoint("CENTER", UIParent, "BOTTOMLEFT", 0, 0)
+                local s = UIParent:GetEffectiveScale()
+                local cx, cy = GetCursorPosition()
+                castRoot:SetPoint("CENTER", UIParent, "BOTTOMLEFT", floor(cx / s + 0.5), floor(cy / s + 0.5))
+                castRoot:SetScript("OnUpdate", function()
+                    local sc = UIParent:GetEffectiveScale()
+                    local mx, my = GetCursorPosition()
+                    castRoot:ClearAllPoints()
+                    castRoot:SetPoint("CENTER", UIParent, "BOTTOMLEFT", floor(mx / sc + 0.5), floor(my / sc + 0.5))
+                end)
             end
         else
             castRoot:SetScript("OnUpdate", nil)
@@ -923,16 +996,6 @@ function ECL:OnInitialize()
             trail = false,
         }
     }, true)
-
-    local _eclSV = _G["EllesmereUICursorDB"]
-    if _eclSV and not _eclSV._liteMigrated then
-        self.db:ResetProfile()
-        _eclSV._liteMigrated = true
-    end
-    if _eclSV and not _eclSV._liteMigrated2 then
-        self.db:ResetProfile()
-        _eclSV._liteMigrated2 = true
-    end
 
     -- Expose for EUI_CursorLite_Options.lua
     _G._ECL_AceDB = self.db

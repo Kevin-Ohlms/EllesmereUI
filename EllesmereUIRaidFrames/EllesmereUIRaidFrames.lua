@@ -260,15 +260,6 @@ function ERF:OnInitialize()
     end
 
     self.db = EllesmereUI.Lite.NewDB("EllesmereUIRaidFramesDB", defaults, true)
-    local _erfSV = _G["EllesmereUIRaidFramesDB"]
-    if _erfSV and not _erfSV._liteMigrated then
-        self.db:ResetProfile()
-        _erfSV._liteMigrated = true
-    end
-    if _erfSV and not _erfSV._liteMigrated2 then
-        self.db:ResetProfile()
-        _erfSV._liteMigrated2 = true
-    end
 
     -- Create the anchor frame for positioning (movable via unlock mode)
     local anchor = CreateFrame("Frame", "EllesmereUIRaidFramesAnchor", UIParent)

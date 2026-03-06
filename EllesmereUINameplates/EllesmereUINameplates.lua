@@ -156,8 +156,8 @@ local defaults = {
     topSlotSize = 26,        topSlotXOffset = 0,      topSlotYOffset = 0,
     rightSlotSize = 24,      rightSlotXOffset = 0,    rightSlotYOffset = 0,
     leftSlotSize = 24,       leftSlotXOffset = 0,     leftSlotYOffset = 0,
-    toprightSlotSize = 24,   toprightSlotXOffset = 0, toprightSlotYOffset = 0,
-    topleftSlotSize = 24,    topleftSlotXOffset = 0,  topleftSlotYOffset = 0,
+    toprightSlotSize = 24,   toprightSlotXOffset = 0, toprightSlotYOffset = 0, toprightSlotGrowth = "right",
+    topleftSlotSize = 24,    topleftSlotXOffset = 0,  topleftSlotYOffset = 0,  topleftSlotGrowth = "left",
     bottomSlotSize = 26,     bottomSlotXOffset = 0,   bottomSlotYOffset = 0,
     -- Core Text Positions: slot-based size + XY offsets
     textSlotTopSize = 10,    textSlotTopXOffset = 0,  textSlotTopYOffset = 0,
@@ -790,13 +790,45 @@ local function PositionAuraSlot(frames, count, slot, plate, sizeW, sizeH, gap, x
         elseif slot == "topleft" then
             local debuffY = GetDebuffYOffset()
             local cpPush = GetClassPowerTopPush(plate)
-            PP.Point(frames[i], "BOTTOMLEFT", plate.health, "TOPLEFT",
-                -2 - (i - 1) * spacing + xOff, debuffY + cpPush + yOff)
+            local db = EllesmereUINameplatesDB
+            local growth = (db and db.topleftSlotGrowth) or defaults.topleftSlotGrowth
+            -- Icon 1 is always flush with the top-left corner of the health bar.
+            -- Growth direction only affects where icons 2+ go from there.
+            local baseX = -2 + xOff
+            local baseY = debuffY + cpPush + yOff
+            local idx = i - 1  -- 0 for icon 1, so it never moves
+            if growth == "up" then
+                PP.Point(frames[i], "BOTTOMLEFT", plate.health, "TOPLEFT",
+                    baseX, baseY + idx * spacing)
+            elseif growth == "right" then
+                PP.Point(frames[i], "BOTTOMLEFT", plate.health, "TOPLEFT",
+                    baseX + idx * spacing, baseY)
+            else
+                -- Default: grow left
+                PP.Point(frames[i], "BOTTOMLEFT", plate.health, "TOPLEFT",
+                    baseX - idx * spacing, baseY)
+            end
         elseif slot == "topright" then
             local debuffY = GetDebuffYOffset()
             local cpPush = GetClassPowerTopPush(plate)
-            PP.Point(frames[i], "BOTTOMRIGHT", plate.health, "TOPRIGHT",
-                2 + (i - 1) * spacing + xOff, debuffY + cpPush + yOff)
+            local db = EllesmereUINameplatesDB
+            local growth = (db and db.toprightSlotGrowth) or defaults.toprightSlotGrowth
+            -- Icon 1 is always flush with the top-right corner of the health bar.
+            -- Growth direction only affects where icons 2+ go from there.
+            local baseX = 2 + xOff
+            local baseY = debuffY + cpPush + yOff
+            local idx = i - 1  -- 0 for icon 1, so it never moves
+            if growth == "up" then
+                PP.Point(frames[i], "BOTTOMRIGHT", plate.health, "TOPRIGHT",
+                    baseX, baseY + idx * spacing)
+            elseif growth == "left" then
+                PP.Point(frames[i], "BOTTOMRIGHT", plate.health, "TOPRIGHT",
+                    baseX - idx * spacing, baseY)
+            else
+                -- Default: grow right
+                PP.Point(frames[i], "BOTTOMRIGHT", plate.health, "TOPRIGHT",
+                    baseX + idx * spacing, baseY)
+            end
         elseif slot == "bottom" then
             -- Anchor below the cast bar, centered
             PP.Point(frames[i], "TOP", plate.cast, "BOTTOM",
@@ -2320,8 +2352,11 @@ local function IsQuestMob(unit)
             -- skip non-quest lines
         elseif lt == Enum.TooltipDataLineType.QuestPlayer then
             -- In a group, only color for YOUR quests
+            -- Use pcall to safely compare leftText — it may be a tainted secret
+            -- string value in certain combat/nameplate contexts
             if isInGroup then
-                ignoreUntilTitle = (line.leftText ~= playerName)
+                local ok, result = pcall(function() return line.leftText ~= playerName end)
+                ignoreUntilTitle = ok and result or false
             end
         elseif lt == Enum.TooltipDataLineType.QuestTitle then
             ignoreUntilTitle = false
@@ -4460,8 +4495,8 @@ do
         "topSlotSize", "topSlotXOffset", "topSlotYOffset",
         "rightSlotSize", "rightSlotXOffset", "rightSlotYOffset",
         "leftSlotSize", "leftSlotXOffset", "leftSlotYOffset",
-        "toprightSlotSize", "toprightSlotXOffset", "toprightSlotYOffset",
-        "topleftSlotSize", "topleftSlotXOffset", "topleftSlotYOffset",
+        "toprightSlotSize", "toprightSlotXOffset", "toprightSlotYOffset", "toprightSlotGrowth",
+        "topleftSlotSize", "topleftSlotXOffset", "topleftSlotYOffset", "topleftSlotGrowth",
         -- Text slot size + XY offsets
         "textSlotTopSize", "textSlotTopXOffset", "textSlotTopYOffset",
         "textSlotRightSize", "textSlotRightXOffset", "textSlotRightYOffset",

@@ -422,15 +422,6 @@ function EMC:OnInitialize()
     end
 
     self.db = EllesmereUI.Lite.NewDB("EllesmereUIBasicsDB", DEFAULTS, true)
-    local _emcSV = _G["EllesmereUIBasicsDB"]
-    if _emcSV and not _emcSV._liteMigrated then
-        self.db:ResetProfile()
-        _emcSV._liteMigrated = true
-    end
-    if _emcSV and not _emcSV._liteMigrated2 then
-        self.db:ResetProfile()
-        _emcSV._liteMigrated2 = true
-    end
 
     -- Merge module defaults into profile if missing
     local p = self.db.profile

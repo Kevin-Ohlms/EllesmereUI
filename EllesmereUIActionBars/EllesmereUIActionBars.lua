@@ -1,4 +1,4 @@
--------------------------------------------------------------------------------
+﻿-------------------------------------------------------------------------------
 --  EllesmereUIActionBars.lua  Custom Action Bars (full rewrite)
 --
 --  Creates its own secure action bar frames and buttons instead of hooking
@@ -305,9 +305,40 @@ end
 
 local fadeAnims = {}
 
+-- Shared OnUpdate frame for fading Blizzard-owned frames (extra bars).
+-- Using CreateAnimationGroup on Blizzard frames can spread taint, so we
+-- drive alpha changes manually via a single update frame instead.
+local _extraFadeQueue = {}
+local _extraFadeFrame = CreateFrame("Frame")
+
+local function _ExtraFadeOnUpdate(_, elapsed)
+    local anyActive = false
+    for frame, info in pairs(_extraFadeQueue) do
+        info.elapsed = info.elapsed + elapsed
+        local t = info.elapsed / info.duration
+        if t >= 1 then
+            frame:SetAlpha(info.toAlpha)
+            _extraFadeQueue[frame] = nil
+        else
+            -- Smooth in/out easing
+            local e = t < 0.5 and (2 * t * t) or (1 - (-2 * t + 2)^2 / 2)
+            frame:SetAlpha(info.fromAlpha + (info.toAlpha - info.fromAlpha) * e)
+            anyActive = true
+        end
+    end
+    if not anyActive then
+        _extraFadeFrame:SetScript("OnUpdate", nil)
+    end
+end
+_extraFadeFrame:SetScript("OnUpdate", nil)  -- start idle
+
 -- Drag visibility state (file-scope so ApplyAll can reset strata on spec change)
 local _dragVisible = false
 local _dragStrataCache = {}
+
+-- Set of frames we own (bar frames, not Blizzard frames).
+-- Blizzard-owned frames use the _extraFadeQueue path to avoid taint.
+local _ownedFrames = {}
 
 local function FadeTo(frame, toAlpha, duration)
     duration = duration or 0.1
@@ -315,6 +346,22 @@ local function FadeTo(frame, toAlpha, duration)
         frame:SetAlpha(toAlpha)
         return
     end
+
+    -- Use OnUpdate path for Blizzard-owned frames to avoid taint from
+    -- CreateAnimationGroup on frames we don't own.
+    if not _ownedFrames[frame] then
+        local existing = _extraFadeQueue[frame]
+        if existing and existing.toAlpha == toAlpha then return end
+        _extraFadeQueue[frame] = {
+            fromAlpha = frame:GetAlpha(),
+            toAlpha   = toAlpha,
+            duration  = duration,
+            elapsed   = 0,
+        }
+        _extraFadeFrame:SetScript("OnUpdate", _ExtraFadeOnUpdate)
+        return
+    end
+
     local data = fadeAnims[frame]
     if not data then
         local group = frame:CreateAnimationGroup()
@@ -332,7 +379,7 @@ local function FadeTo(frame, toAlpha, duration)
         end)
     end
     local group, anim = data.group, data.anim
-    -- Already animating toward the same target â€” don't restart
+    -- Already animating toward the same target -- don't restart
     if group:IsPlaying() and group._toAlpha == toAlpha then return end
     if group:IsPlaying() then group:Stop() end
     group._toAlpha = toAlpha
@@ -344,6 +391,9 @@ local function FadeTo(frame, toAlpha, duration)
 end
 
 local function StopFade(frame)
+    -- Clear from OnUpdate queue (Blizzard-owned frames)
+    _extraFadeQueue[frame] = nil
+    -- Clear animation group (owned frames)
     local data = fadeAnims[frame]
     if data and data.group and data.group:IsPlaying() then
         data.group:Stop()
@@ -891,6 +941,7 @@ local function CreateBarFrame(info)
     barFrames[key] = frame
     -- Register with secure handler so it can reparent buttons to this frame
     SecureSetupHandler_RegisterBarFrame(key, frame)
+    _ownedFrames[frame] = true
     return frame
 end
 
@@ -963,7 +1014,7 @@ local function SetupBar(info, skipProtected)
             if btn then
                 -- RegisterForClicks and EnableMouseWheel are not protected
                 if btn.RegisterForClicks then
-                    btn:RegisterForClicks("AnyUp", "AnyDown")
+                    btn:RegisterForClicks("AnyDown", "AnyUp")
                 end
                 if btn.EnableMouseWheel then
                     btn:EnableMouseWheel(true)
@@ -2235,6 +2286,7 @@ end
 --  Mouseover Fade System
 -------------------------------------------------------------------------------
 local hoverStates = {}  -- [barKey] = { frame=, buttons=, isHovered=false }
+local AttachExtraBarHoverHooks  -- forward declaration; defined near SetupExtraBarHolder
 
 local function AttachHoverHooks(barKey)
     local frame = barFrames[barKey]
@@ -2335,7 +2387,18 @@ function EAB:RefreshMouseover()
         if not s then break end
         local frame = barFrames[key] or (info.isDataBar and dataBarFrames[key]) or (info.isBlizzardMovable and blizzMovableHolders[key]) or (extraBarHolders[key]) or (info.visibilityOnly and _G[info.frameName])
         if frame then
+            -- For extra bars (MicroBar, BagBar), fade the Blizzard frame directly
+            -- since that's what AttachExtraBarHoverHooks targets.
+            if info.visibilityOnly and not info.isDataBar and not info.isBlizzardMovable then
+                local blizzFrame = _G[info.frameName]
+                if blizzFrame then frame = blizzFrame end
+            end
             if s.mouseoverEnabled then
+                -- Ensure extra bars have hover hooks attached (may not have been
+                -- set up at load time if mouseover was disabled then)
+                if info.visibilityOnly and not info.isDataBar and not info.isBlizzardMovable then
+                    AttachExtraBarHoverHooks(info)
+                end
                 StopFade(frame)
                 frame:SetAlpha(0)
                 local state = hoverStates[key]
@@ -3231,12 +3294,28 @@ end
 --  Keybind System
 --  Binds keys to our buttons. On MainBar, bindings are ACTIONBUTTON1-12.
 --  On other bars, we use the standard MULTIACTIONBAR bindings.
+--
 --  Each button gets a hidden SecureActionButtonTemplate child ("bind button")
---  that receives keybind presses. This child mirrors the parent's action and
---  properly respects the ActionButtonUseKeyDown CVar for cast-on-key-down.
+--  that receives keybind presses and mirrors the parent's action.
+--
+--  Cast-on-key-down (ActionButtonUseKeyDown CVar):
+--    When ON:  keys are bound with "HOTKEY" click type. A WrapScript in the
+--              secure env translates HOTKEY -> LeftButton on key-down.
+--              typerelease="actionrelease" is set so hold-to-cast works.
+--    When OFF: keys are bound with "LeftButton" click type. The bind button
+--              fires normally on key-up. No HOTKEY translation occurs.
+--              Zero overhead vs. not having the bind button at all.
 -------------------------------------------------------------------------------
 local _vehicleBindsCleared = false
 local _housingBindsCleared = false
+
+-- Secure controller used to WrapScript bind buttons in the secure environment.
+local _bindController = CreateFrame("Frame", nil, nil, "SecureHandlerAttributeTemplate")
+
+-- Returns true if the cast-on-key-down CVar is currently enabled.
+local function IsKeyDownEnabled()
+    return GetCVar("ActionButtonUseKeyDown") == "1"
+end
 
 local function GetOrCreateBindButton(btn)
     if btn._bindBtn then return btn._bindBtn end
@@ -3244,7 +3323,6 @@ local function GetOrCreateBindButton(btn)
 
     local bind = CreateFrame("Button", btn:GetName() .. "Hotkey", btn, "SecureActionButtonTemplate")
     bind:SetAttributeNoHandler("type", "action")
-    bind:SetAttributeNoHandler("typerelease", "actionrelease")
     bind:SetAttributeNoHandler("useparent-action", true)
     bind:SetAttributeNoHandler("useparent-checkfocuscast", true)
     bind:SetAttributeNoHandler("useparent-checkmouseovercast", true)
@@ -3252,10 +3330,21 @@ local function GetOrCreateBindButton(btn)
     bind:SetAttributeNoHandler("useparent-flyoutDirection", true)
     bind:SetAttributeNoHandler("useparent-pressAndHoldAction", true)
     bind:SetAttributeNoHandler("useparent-unit", true)
-    bind:EnableMouseWheel()
+    bind:SetSize(1, 1)
+    bind:EnableMouseWheel(true)
     bind:RegisterForClicks("AnyUp", "AnyDown")
 
-    -- Visual feedback: push/release the parent button on key down/up
+    -- Translate HOTKEY virtual click into LeftButton inside the secure env.
+    -- Only active when keys are bound with "HOTKEY" click type (key-down mode).
+    -- When key-down is off, keys are bound as "LeftButton" so this never fires.
+    _bindController:WrapScript(bind, "OnClick", [[
+        if button == "HOTKEY" then
+            return "LeftButton"
+        end
+    ]])
+
+    -- Visual feedback: push/release the parent button on key down/up.
+    -- Safe for both key-down and key-up modes.
     bind:SetScript("PreClick", function(self, _, down)
         local owner = self:GetParent()
         if down then
@@ -3273,35 +3362,50 @@ local function GetOrCreateBindButton(btn)
     return bind
 end
 
+-- Applies the correct typerelease to a bind button based on whether
+-- cast-on-key-down is currently enabled. Called out of combat only.
+local function ApplyBindButtonMode(bind, keyDownEnabled)
+    if keyDownEnabled then
+        -- Key-down mode: typerelease="actionrelease" enables hold-to-cast.
+        bind:SetAttributeNoHandler("typerelease", "actionrelease")
+    else
+        -- Key-up mode: no typerelease needed.
+        bind:SetAttributeNoHandler("typerelease", nil)
+    end
+end
+
 local function UpdateKeybinds()
     if _vehicleBindsCleared or _housingBindsCleared then return end
     if InCombatLockdown() then return end
+
+    local keyDownEnabled = IsKeyDownEnabled()
+    local clickType = keyDownEnabled and "HOTKEY" or "LeftButton"
+
     for _, info in ipairs(BAR_CONFIG) do
-        -- Stance and pet bar buttons use Blizzard's native binding system â€” skip them
+        -- Stance and pet bar buttons use Blizzard's native binding system -- skip them
         if info.isStance or info.isPetBar then
-            -- Do nothing; Blizzard handles SHAPESHIFTBUTTON/BONUSACTIONBUTTON bindings natively
+            -- Blizzard handles SHAPESHIFTBUTTON/BONUSACTIONBUTTON bindings natively
         else
             local key = info.key
             local buttons = barButtons[key]
             local bindPrefix = BINDING_MAP[key]
             if buttons and bindPrefix then
-                local frame = barFrames[key]
-                if frame then
-                    ClearOverrideBindings(frame)
-                end
                 for i = 1, #buttons do
                     local btn = buttons[i]
-                    if btn and frame then
+                    if btn then
                         local bindingAction = bindPrefix .. i
                         local key1, key2 = GetBindingKey(bindingAction)
                         local bind = GetOrCreateBindButton(btn)
-                        local targetName = bind and bind:GetName() or btn:GetName()
-                        local clickBtn = "HOTKEY"
-                        if key1 then
-                            SetOverrideBindingClick(frame, false, key1, targetName, clickBtn)
-                        end
-                        if key2 then
-                            SetOverrideBindingClick(frame, false, key2, targetName, clickBtn)
+                        if bind then
+                            ApplyBindButtonMode(bind, keyDownEnabled)
+                            ClearOverrideBindings(bind)
+                            local bindName = bind:GetName()
+                            if key1 then
+                                SetOverrideBindingClick(bind, false, key1, bindName, clickType)
+                            end
+                            if key2 then
+                                SetOverrideBindingClick(bind, false, key2, bindName, clickType)
+                            end
                         end
                     end
                 end
@@ -3310,6 +3414,21 @@ local function UpdateKeybinds()
     end
 end
 
+-- Called when ActionButtonUseKeyDown CVar changes. Defers to out-of-combat.
+local function ApplyKeyDownCVar()
+    if InCombatLockdown() then
+        -- Can't rebind in combat; defer until combat ends.
+        local f = CreateFrame("Frame")
+        f:RegisterEvent("PLAYER_REGEN_ENABLED")
+        f:SetScript("OnEvent", function(self)
+            self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+            self:SetScript("OnEvent", nil)
+            UpdateKeybinds()
+        end)
+        return
+    end
+    UpdateKeybinds()
+end
 -------------------------------------------------------------------------------
 --  Vehicle / Override Keybind Clearing
 --  When the player enters a vehicle or override bar, clear our override
@@ -3321,9 +3440,13 @@ local function ClearKeybindsForVehicle()
     _vehicleBindsCleared = true
     -- ClearOverrideBindings is not a protected function and can be called in combat
     for _, info in ipairs(BAR_CONFIG) do
-        local frame = barFrames[info.key]
-        if frame then
-            ClearOverrideBindings(frame)
+        local btns = barButtons[info.key]
+        if btns then
+            for _, btn in ipairs(btns) do
+                if btn and btn._bindBtn then
+                    ClearOverrideBindings(btn._bindBtn)
+                end
+            end
         end
     end
 end
@@ -3420,9 +3543,13 @@ if IsHouseEditorActive then
             _housingBindsCleared = true
             if not InCombatLockdown() then
                 for _, info in ipairs(BAR_CONFIG) do
-                    local frame = barFrames[info.key]
-                    if frame then
-                        ClearOverrideBindings(frame)
+                    local btns = barButtons[info.key]
+                    if btns then
+                        for _, btn in ipairs(btns) do
+                            if btn and btn._bindBtn then
+                                ClearOverrideBindings(btn._bindBtn)
+                            end
+                        end
                     end
                 end
             end
@@ -3706,15 +3833,6 @@ function EAB:OnInitialize()
         or (rawDB.profiles and not rawDB.profiles.Default)
 
     self.db = EllesmereUI.Lite.NewDB("EllesmereUIActionBarsDB", defaults, true)
-    local _eabSV = _G["EllesmereUIActionBarsDB"]
-    if _eabSV and not _eabSV._liteMigrated then
-        self.db:ResetProfile()
-        _eabSV._liteMigrated = true
-    end
-    if _eabSV and not _eabSV._liteMigrated2 then
-        self.db:ResetProfile()
-        _eabSV._liteMigrated2 = true
-    end
 
     -- Mark whether we need to capture Blizzard layout on first login.
     -- The actual capture is deferred to PLAYER_ENTERING_WORLD when
@@ -3732,6 +3850,22 @@ function EAB:OnInitialize()
     SlashCmdList["ELLESMEREACTIONBARS"] = function(msg)
         if EllesmereUI and EllesmereUI.Toggle then
             EllesmereUI:Toggle()
+        end
+    end
+
+    SLASH_EABDEBUG1 = "/eabdebug"
+    SlashCmdList["EABDEBUG"] = function()
+        local btn = ActionButton1
+        if not btn then print("[EAB] ActionButton1 not found") return end
+        print("[EAB] btn name: " .. tostring(btn:GetName()))
+        print("[EAB] btn type attr: " .. tostring(btn:GetAttribute("type")))
+        print("[EAB] btn pressAndHoldAction: " .. tostring(btn:GetAttribute("pressAndHoldAction")))
+        print("[EAB] _pahHooked: " .. tostring(btn._pahHooked))
+        print("[EAB] CVar ActionButtonUseKeyDown: " .. tostring(GetCVar("ActionButtonUseKeyDown")))
+        local k1, k2 = GetBindingKey("ACTIONBUTTON1")
+        print("[EAB] ACTIONBUTTON1 keys: " .. tostring(k1) .. ", " .. tostring(k2))
+        if k1 then
+            print("[EAB] GetBindingAction(" .. k1 .. "): " .. tostring(GetBindingAction(k1, true)))
         end
     end
 end
@@ -3937,6 +4071,7 @@ function EAB:FinishSetup()
         local function DoVisuals()
             ApplyAll()
             UpdateKeybinds()
+            ApplyKeyDownCVar()
             self:HookProcGlow()
             self:ScanExistingProcs()
             -- Re-anchor vehicle exit button
@@ -4012,6 +4147,13 @@ function EAB:FinishSetup()
 
     self:RegisterEvent("ACTIONBAR_SHOWGRID", OnGridChange)
 
+    -- Re-apply useOnKeyDown when the "Press and Hold Casting" CVar changes.
+    self:RegisterEvent("CVAR_UPDATE", function(_, cvarName)
+        if cvarName == "ActionButtonUseKeyDown" then
+            ApplyKeyDownCVar()
+        end
+    end)
+
     -- Detect bar-to-bar drags (CURSOR_CHANGED) and clear grid state on drop.
     -- Also show mouseover-faded bars while dragging so the player can drop
     -- spells/items onto them.  Purely visual -- no secure frame access.
@@ -4044,6 +4186,11 @@ function EAB:FinishSetup()
                 or (info.isBlizzardMovable and blizzMovableHolders[key])
                 or extraBarHolders[key]
                 or (info.visibilityOnly and _G[info.frameName])
+            -- For extra bars, alpha is managed on the Blizzard frame directly
+            if info.visibilityOnly and not info.isDataBar and not info.isBlizzardMovable then
+                local bf = _G[info.frameName]
+                if bf then frame = bf end
+            end
             if frame then
                 local state = hoverStates[key]
                 if show then
@@ -5077,6 +5224,72 @@ end
 --  Extra Bar Holders (MicroBar, BagBar) â€” positioning via holder frames
 --  Reparents Blizzard frames into holder frames so unlock mode can position them.
 -------------------------------------------------------------------------------
+AttachExtraBarHoverHooks = function(info)
+    -- Idempotent: only attach once per bar key
+    if hoverStates[info.key] then return end
+
+    local blizzFrame = _G[info.frameName]
+    if not blizzFrame then return end
+    local holder = extraBarHolders[info.key]
+
+    -- Fade the Blizzard frame directly rather than the holder.
+    -- The holder is for positioning only; fading it can be overridden by
+    -- Blizzard's own layout code calling SetAlpha on the child frame.
+    local fadeTarget = blizzFrame
+
+    local state = { isHovered = false, fadeDir = nil, frame = fadeTarget }
+    hoverStates[info.key] = state
+
+    local function OnEnter()
+        state.isHovered = true
+        local bs = EAB.db.profile.bars[info.key]
+        if bs and bs.mouseoverEnabled and state.fadeDir ~= "in" then
+            state.fadeDir = "in"
+            StopFade(fadeTarget)
+            FadeTo(fadeTarget, 1, bs.mouseoverSpeed or 0.15)
+        end
+    end
+    local function OnLeave()
+        state.isHovered = false
+        C_Timer_After(0.1, function()
+            if state.isHovered then return end
+            local bs = EAB.db.profile.bars[info.key]
+            if bs and bs.mouseoverEnabled and state.fadeDir ~= "out" then
+                state.fadeDir = "out"
+                FadeTo(fadeTarget, 0, bs.mouseoverSpeed or 0.15)
+            end
+        end)
+    end
+
+    blizzFrame:HookScript("OnEnter", OnEnter)
+    blizzFrame:HookScript("OnLeave", OnLeave)
+    local hoverFrame = info.hoverFrame and _G[info.hoverFrame]
+    if hoverFrame and hoverFrame ~= blizzFrame then
+        hoverFrame:HookScript("OnEnter", OnEnter)
+        hoverFrame:HookScript("OnLeave", OnLeave)
+    end
+
+    -- Recurse into child frames to hook all interactive buttons, including
+    -- those nested inside sub-containers (e.g. MicroMenu inside MicroMenuContainer).
+    local function HookChildren(parent, depth)
+        depth = depth or 0
+        if depth > 3 then return end
+        for _, child in ipairs({ parent:GetChildren() }) do
+            if child:IsObjectType("Button") or child:IsObjectType("CheckButton") or child:IsObjectType("ItemButton") then
+                child:HookScript("OnEnter", OnEnter)
+                child:HookScript("OnLeave", OnLeave)
+            else
+                -- Recurse into non-button containers
+                HookChildren(child, depth + 1)
+            end
+        end
+    end
+    HookChildren(blizzFrame)
+    if hoverFrame and hoverFrame ~= blizzFrame then
+        HookChildren(hoverFrame)
+    end
+end
+
 local function SetupExtraBarHolder(barKey, frameName)
     local blizzFrame = _G[frameName]
     if not blizzFrame then return end
@@ -5291,60 +5504,7 @@ local function SetupExtraBars()
                         blizzFrame:Hide()
                         if holder then holder:Hide() end
                     end
-                    if s.mouseoverEnabled then
-                        -- Fade the holder frame (our own, non-protected frame)
-                        -- so we never call SetAlpha on a protected Blizzard frame
-                        local fadeTarget = holder or blizzFrame
-                        local state = { isHovered = false, fadeDir = nil }
-                        hoverStates[info.key] = state
-
-                        local function OnEnter()
-                            state.isHovered = true
-                            local bs = EAB.db.profile.bars[info.key]
-                            if bs and bs.mouseoverEnabled and state.fadeDir ~= "in" then
-                                state.fadeDir = "in"
-                                StopFade(fadeTarget)
-                                FadeTo(fadeTarget, 1, bs.mouseoverSpeed or 0.15)
-                            end
-                        end
-                        local function OnLeave()
-                            state.isHovered = false
-                            C_Timer_After(0.1, function()
-                                if state.isHovered then return end
-                                local bs = EAB.db.profile.bars[info.key]
-                                if bs and bs.mouseoverEnabled and state.fadeDir ~= "out" then
-                                    state.fadeDir = "out"
-                                    FadeTo(fadeTarget, 0, bs.mouseoverSpeed or 0.15)
-                                end
-                            end)
-                        end
-
-                        -- Hook the Blizzard container and optional hover frame
-                        blizzFrame:HookScript("OnEnter", OnEnter)
-                        blizzFrame:HookScript("OnLeave", OnLeave)
-                        local hoverFrame = info.hoverFrame and _G[info.hoverFrame]
-                        if hoverFrame and hoverFrame ~= blizzFrame then
-                            hoverFrame:HookScript("OnEnter", OnEnter)
-                            hoverFrame:HookScript("OnLeave", OnLeave)
-                        end
-
-                        -- Hook all child buttons so hovering individual micro
-                        -- menu buttons or bag slots triggers the fade
-                        local function HookChildren(parent)
-                            for _, child in ipairs({ parent:GetChildren() }) do
-                                if child:IsObjectType("Button") or child:IsObjectType("CheckButton") or child:IsObjectType("ItemButton") then
-                                    child:HookScript("OnEnter", OnEnter)
-                                    child:HookScript("OnLeave", OnLeave)
-                                end
-                            end
-                        end
-                        HookChildren(blizzFrame)
-                        if hoverFrame and hoverFrame ~= blizzFrame then
-                            HookChildren(hoverFrame)
-                        end
-
-                        fadeTarget:SetAlpha(0)
-                    end
+                    AttachExtraBarHoverHooks(info)
                 end
             end
         end  -- not isDataBar/isBlizzardMovable
@@ -5363,6 +5523,11 @@ local function SetupExtraBars()
 
     -- Setup data bars (XP, Rep)
     SetupDataBars()
+
+    -- Apply correct initial alpha now that holders exist.
+    -- RefreshMouseover ran at OnEnable before holders were created, so
+    -- bars with mouseoverEnabled never got their alpha set to 0.
+    EAB:RefreshMouseover()
 end
 
 -- Setup extra bars after a short delay to ensure frames exist

@@ -1656,12 +1656,23 @@ local PLAYER_FRAME_SOURCES = {
 }
 
 local _cachedPlayerFrame
+local _cachedPlayerFrameRoster = 0
 
 local function FindPlayerUnitFrame()
-    if _cachedPlayerFrame and _cachedPlayerFrame:IsVisible() then
-        return _cachedPlayerFrame
+    -- Invalidate cache when group roster changes (spec swap, join/leave)
+    local rosterToken = GetNumGroupMembers()
+    if _cachedPlayerFrame and _cachedPlayerFrameRoster == rosterToken then
+        -- Also re-verify the unit attribute — party header children get
+        -- reassigned dynamically by the secure group system.
+        if _cachedPlayerFrame:IsVisible() then
+            local u = _cachedPlayerFrame.GetAttribute and _cachedPlayerFrame:GetAttribute("unit")
+            if not u or UnitIsUnit(u, "player") then
+                return _cachedPlayerFrame
+            end
+        end
     end
     _cachedPlayerFrame = nil
+    _cachedPlayerFrameRoster = rosterToken
 
     -- Check dedicated player frame addons first
     for _, src in ipairs(PLAYER_FRAME_SOURCES) do
@@ -2418,6 +2429,7 @@ local function CreateCDMIcon(barKey, index)
     chargeText:SetFont(GetCDMFont(), barData.stackCountSize or 11, "OUTLINE")
     chargeText:SetPoint("BOTTOMRIGHT", textOverlay, "BOTTOMRIGHT", barData.stackCountX or 0, (barData.stackCountY or 0) + 2)
     chargeText:SetJustifyH("RIGHT")
+    chargeText:SetTextColor(barData.stackCountR or 1, barData.stackCountG or 1, barData.stackCountB or 1)
     chargeText:Hide()
     icon._chargeText = chargeText
 
@@ -2932,25 +2944,39 @@ UpdateCDMBarIcons = function(barKey)
             -- Detect aura/active state
             local isAura = blizzIcon.wasSetFromAura == true or blizzIcon.auraInstanceID ~= nil
             local auraHandled = false
+            local skipCDDisplay = false
 
             if isAura and activeAnim ~= "hideActive" then
-                -- Aura active: get countdown from C_UnitAuras
-                local auraID = blizzIcon.auraInstanceID
-                if auraID then
-                    local unit = blizzIcon.auraDataUnit or "player"
-                    local ok, auraDurObj = pcall(C_UnitAuras.GetAuraDuration, unit, auraID)
-                    if ok and auraDurObj then
-                        ourIcon._cooldown:Clear()
-                        pcall(ourIcon._cooldown.SetCooldownFromDurationObject, ourIcon._cooldown, auraDurObj, true)
-                        ourIcon._cooldown:SetReverse(false)
-                        auraHandled = true
+                -- For charge-based spells, the CD display takes priority over
+                -- the aura duration — the HOT being on self should not hide the
+                -- charge recharge timer. We still mark auraHandled so the active
+                -- glow fires correctly.
+                local isChargeSid = resolvedSid and C_Spell.GetSpellChargeDuration
+                    and C_Spell.GetSpellChargeDuration(resolvedSid)
+                if isChargeSid then
+                    -- Charge spell: mark active for glow, but let ApplySpellCooldown
+                    -- show the charge CD normally (skipCDDisplay stays false)
+                    auraHandled = true
+                else
+                    -- Non-charge aura: show aura duration on the cooldown frame
+                    local auraID = blizzIcon.auraInstanceID
+                    if auraID then
+                        local unit = blizzIcon.auraDataUnit or "player"
+                        local ok, auraDurObj = pcall(C_UnitAuras.GetAuraDuration, unit, auraID)
+                        if ok and auraDurObj then
+                            ourIcon._cooldown:Clear()
+                            pcall(ourIcon._cooldown.SetCooldownFromDurationObject, ourIcon._cooldown, auraDurObj, true)
+                            ourIcon._cooldown:SetReverse(false)
+                            auraHandled = true
+                            skipCDDisplay = true
+                        end
                     end
                 end
             end
 
             -- Spell cooldown + desaturation (uses shared helper)
             if resolvedSid and resolvedSid > 0 then
-                ApplySpellCooldown(ourIcon, resolvedSid, desatOnCD, showCharges, swAlpha, auraHandled)
+                ApplySpellCooldown(ourIcon, resolvedSid, desatOnCD, showCharges, swAlpha, skipCDDisplay)
             else
                 if desatOnCD and ourIcon._lastDesat then
                     ourIcon._tex:SetDesaturation(0)
@@ -3072,6 +3098,7 @@ local function RefreshCDMIconAppearance(barKey)
             icon._chargeText:SetFont(GetCDMFont(), barData.stackCountSize or 11, "OUTLINE")
             icon._chargeText:ClearAllPoints()
             icon._chargeText:SetPoint("BOTTOMRIGHT", barData.stackCountX or 0, (barData.stackCountY or 0) + 2)
+            icon._chargeText:SetTextColor(barData.stackCountR or 1, barData.stackCountG or 1, barData.stackCountB or 1)
         end
         -- Update stack count text font/position/color
         if icon._stackText then
@@ -3256,17 +3283,31 @@ local function UpdateTrackedBarIcons(barKey)
             -- Detect aura/active state
             local isAura = blizzChild.wasSetFromAura == true or blizzChild.auraInstanceID ~= nil
             local auraHandled = false
+            local skipCDDisplay = false
 
             if isAura and activeAnim ~= "hideActive" then
-                local auraID = blizzChild.auraInstanceID
-                if auraID then
-                    local unit = blizzChild.auraDataUnit or "player"
-                    local ok, auraDurObj = pcall(C_UnitAuras.GetAuraDuration, unit, auraID)
-                    if ok and auraDurObj then
-                        ourIcon._cooldown:Clear()
-                        pcall(ourIcon._cooldown.SetCooldownFromDurationObject, ourIcon._cooldown, auraDurObj, true)
-                        ourIcon._cooldown:SetReverse(false)
-                        auraHandled = true
+                -- For charge-based spells, the CD display takes priority over
+                -- the aura duration — the HOT being on self should not hide the
+                -- charge recharge timer. We still mark auraHandled so the active
+                -- glow fires correctly.
+                local isChargeSid = resolvedSid and C_Spell.GetSpellChargeDuration
+                    and C_Spell.GetSpellChargeDuration(resolvedSid)
+                if isChargeSid then
+                    -- Charge spell: mark active for glow, but let ApplySpellCooldown
+                    -- show the charge CD normally (skipCDDisplay stays false)
+                    auraHandled = true
+                else
+                    local auraID = blizzChild.auraInstanceID
+                    if auraID then
+                        local unit = blizzChild.auraDataUnit or "player"
+                        local ok, auraDurObj = pcall(C_UnitAuras.GetAuraDuration, unit, auraID)
+                        if ok and auraDurObj then
+                            ourIcon._cooldown:Clear()
+                            pcall(ourIcon._cooldown.SetCooldownFromDurationObject, ourIcon._cooldown, auraDurObj, true)
+                            ourIcon._cooldown:SetReverse(false)
+                            auraHandled = true
+                            skipCDDisplay = true
+                        end
                     end
                 end
             end
@@ -3288,7 +3329,7 @@ local function UpdateTrackedBarIcons(barKey)
                         ourIcon._keybindText:Hide()
                     end
                 end
-                ApplySpellCooldown(ourIcon, resolvedSid, desatOnCD, showCharges, swAlpha, auraHandled)
+                ApplySpellCooldown(ourIcon, resolvedSid, desatOnCD, showCharges, swAlpha, skipCDDisplay)
             else
                 if desatOnCD and ourIcon._lastDesat then
                     ourIcon._tex:SetDesaturation(0)
@@ -4567,15 +4608,6 @@ function ECME:OnInitialize()
     end
 
     self.db = EllesmereUI.Lite.NewDB("EllesmereUICooldownManagerDB", DEFAULTS, true)
-    local _ecmeSV = _G["EllesmereUICooldownManagerDB"]
-    if _ecmeSV and not _ecmeSV._liteMigrated then
-        self.db:ResetProfile()
-        _ecmeSV._liteMigrated = true
-    end
-    if _ecmeSV and not _ecmeSV._liteMigrated2 then
-        self.db:ResetProfile()
-        _ecmeSV._liteMigrated2 = true
-    end
 
     -- Migration: enable showStackCount on the buffs bar (was false by default)
     do
@@ -4765,6 +4797,7 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, updateInfo)
         _cachedPartyFrame = nil
         _cachedPartyFrameRoster = 0
         _cachedPlayerFrame = nil
+        _cachedPlayerFrameRoster = 0
         C_Timer.After(0.2, function() BuildAllCDMBars() end)
         return
     end
@@ -4808,6 +4841,10 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, updateInfo)
         return
     end
     if event == "PLAYER_SPECIALIZATION_CHANGED" and unit == "player" then
+        -- Invalidate player frame cache — Dander's party header children
+        -- get reassigned when the secure group system updates after spec swap.
+        _cachedPlayerFrame = nil
+        _cachedPlayerFrameRoster = 0
         local newSpecKey = GetCurrentSpecKey()
         local p = ECME.db.profile
         if newSpecKey ~= "0" and newSpecKey ~= p.activeSpecKey then

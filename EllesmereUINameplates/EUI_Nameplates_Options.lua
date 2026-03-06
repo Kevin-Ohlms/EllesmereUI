@@ -1130,11 +1130,29 @@ initFrame:SetScript("OnEvent", function(self)
                     local sideOff = DBVal("sideAuraXOffset") or defaults.sideAuraXOffset
                     frame:SetPoint("BOTTOMLEFT", health, "BOTTOMRIGHT", sideOff + (index - 1) * slotSpacing + sxOff, syOff)
                 elseif slotName == "topleft" then
-                    frame:SetPoint("BOTTOMLEFT", health, "TOPLEFT",
-                        -2 - (index - 1) * slotSpacing + sxOff, debuffY + cpPush + syOff)
+                    local growth = DBVal("topleftSlotGrowth") or defaults.topleftSlotGrowth
+                    local idx = index - 1  -- 0 for icon 1, never moves
+                    local baseX = -2 + sxOff
+                    local baseY = debuffY + cpPush + syOff
+                    if growth == "up" then
+                        frame:SetPoint("BOTTOMLEFT", health, "TOPLEFT", baseX, baseY + idx * slotSpacing)
+                    elseif growth == "right" then
+                        frame:SetPoint("BOTTOMLEFT", health, "TOPLEFT", baseX + idx * slotSpacing, baseY)
+                    else
+                        frame:SetPoint("BOTTOMLEFT", health, "TOPLEFT", baseX - idx * slotSpacing, baseY)
+                    end
                 elseif slotName == "topright" then
-                    frame:SetPoint("BOTTOMRIGHT", health, "TOPRIGHT",
-                        2 + (index - 1) * slotSpacing + sxOff, debuffY + cpPush + syOff)
+                    local growth = DBVal("toprightSlotGrowth") or defaults.toprightSlotGrowth
+                    local idx = index - 1  -- 0 for icon 1, never moves
+                    local baseX = 2 + sxOff
+                    local baseY = debuffY + cpPush + syOff
+                    if growth == "up" then
+                        frame:SetPoint("BOTTOMRIGHT", health, "TOPRIGHT", baseX, baseY + idx * slotSpacing)
+                    elseif growth == "left" then
+                        frame:SetPoint("BOTTOMRIGHT", health, "TOPRIGHT", baseX - idx * slotSpacing, baseY)
+                    else
+                        frame:SetPoint("BOTTOMRIGHT", health, "TOPRIGHT", baseX + idx * slotSpacing, baseY)
+                    end
                 elseif slotName == "bottom" then
                     frame:SetPoint("TOP", cast, "BOTTOM",
                         (index - (count + 1) / 2) * slotSpacing + sxOff, -2 + syOff)
@@ -2691,8 +2709,8 @@ initFrame:SetScript("OnEvent", function(self)
             "topSlotSize", "topSlotXOffset", "topSlotYOffset",
             "rightSlotSize", "rightSlotXOffset", "rightSlotYOffset",
             "leftSlotSize", "leftSlotXOffset", "leftSlotYOffset",
-            "toprightSlotSize", "toprightSlotXOffset", "toprightSlotYOffset",
-            "topleftSlotSize", "topleftSlotXOffset", "topleftSlotYOffset",
+            "toprightSlotSize", "toprightSlotXOffset", "toprightSlotYOffset", "toprightSlotGrowth",
+            "topleftSlotSize", "topleftSlotXOffset", "topleftSlotYOffset", "topleftSlotGrowth",
             -- Text slot size + offset keys
             "textSlotTopSize", "textSlotTopXOffset", "textSlotTopYOffset",
             "textSlotRightSize", "textSlotRightXOffset", "textSlotRightYOffset",
@@ -3433,6 +3451,57 @@ initFrame:SetScript("OnEvent", function(self)
                 pf._SLIDER_W = SLIDER_W
                 pf._S_ROW_Y = S_ROW_Y
 
+                -- Growth direction row (shown only for topleft/topright slots)
+                local GROWTH_ROW_H = 22
+                local G_ROW_Y = S_ROW_Y - SLIDER_H - GAP
+                pf._G_ROW_Y = G_ROW_Y
+                pf._GROWTH_ROW_H = GROWTH_ROW_H
+
+                local gLabel = MakeFont(pf, 12, nil, 1, 1, 1)
+                gLabel:SetAlpha(0.6); gLabel:SetText("Grow")
+                gLabel:SetPoint("TOPLEFT", pf, "TOPLEFT", SIDE_PAD, G_ROW_Y)
+                pf._gLabel = gLabel
+
+                -- Three small radio buttons: values filled in at show time
+                local gBtns = {}
+                local BTN_W, BTN_H, BTN_GAP = 52, 20, 4
+                for bi = 1, 3 do
+                    local b = CreateFrame("Button", nil, pf)
+                    b:SetSize(BTN_W, BTN_H)
+                    b:SetPoint("TOPLEFT", pf, "TOPLEFT",
+                        SLIDER_LEFT + (bi - 1) * (BTN_W + BTN_GAP),
+                        G_ROW_Y - 1)
+                    local bg = b:CreateTexture(nil, "BACKGROUND")
+                    bg:SetAllPoints()
+                    bg:SetColorTexture(0.15, 0.15, 0.15, 0.8)
+                    b._bg = bg
+                    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+                    hl:SetAllPoints()
+                    hl:SetColorTexture(1, 1, 1, 0.06)
+                    local lbl = b:CreateFontString(nil, "OVERLAY")
+                    lbl:SetFont(EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF", 11, "")
+                    lbl:SetAllPoints()
+                    lbl:SetJustifyH("CENTER")
+                    lbl:SetJustifyV("MIDDLE")
+                    b._lbl = lbl
+                    b:SetScript("OnClick", function(self)
+                        if pf._growthSet then pf._growthSet(self._value) end
+                        -- Refresh button states
+                        local cur = pf._growthGet and pf._growthGet() or ""
+                        for _, gb in ipairs(gBtns) do
+                            local active = (gb._value == cur)
+                            gb._bg:SetColorTexture(
+                                active and 0.973 or 0.15,
+                                active and 0.839 or 0.15,
+                                active and 0.604 or 0.15,
+                                active and 0.25  or 0.8)
+                            gb._lbl:SetTextColor(active and 1 or 0.7, active and 1 or 0.7, active and 1 or 0.7)
+                        end
+                    end)
+                    gBtns[bi] = b
+                end
+                pf._gBtns = gBtns
+
                 -- Layout constants stored for height calc
                 pf._TOP_PAD = TOP_PAD; pf._TITLE_H = TITLE_H; pf._TITLE_GAP = TITLE_GAP
                 pf._GAP = GAP; pf._SLIDER_H = SLIDER_H; pf._SIDE_PAD = SIDE_PAD
@@ -3479,6 +3548,7 @@ initFrame:SetScript("OnEvent", function(self)
 
             -- Show/hide size row and adjust height
             local hasSize = opts.sizeGet ~= nil
+            local hasGrowth = opts.growthGet ~= nil
             if hasSize then
                 -- Rebuild size slider if range changed
                 local sStep = opts.sizeStep or 1
@@ -3499,16 +3569,64 @@ initFrame:SetScript("OnEvent", function(self)
                 cogPopup._sLabel:Show()
                 if cogPopup._sTrack then cogPopup._sTrack:Show() end
                 if cogPopup._sValBox then cogPopup._sValBox:Show() end
-                -- 3-row height
-                local p = cogPopup
-                cogPopup:SetHeight(p._TOP_PAD + p._TITLE_H + p._TITLE_GAP + p._GAP + p._SLIDER_H + p._GAP + p._SLIDER_H + p._GAP + p._SLIDER_H + p._TOP_PAD)
             else
                 cogPopup._sLabel:Hide()
                 if cogPopup._sTrack then cogPopup._sTrack:Hide() end
                 if cogPopup._sValBox then cogPopup._sValBox:Hide() end
-                -- 2-row height (X + Y only)
+            end
+
+            -- Show/hide growth row
+            if hasGrowth then
+                cogPopup._growthGet = opts.growthGet
+                cogPopup._growthSet = opts.growthSet
+                local vals = opts.growthValues  -- { { value, label }, ... }
+                local cur = opts.growthGet()
+                for bi, btn in ipairs(cogPopup._gBtns) do
+                    local entry = vals and vals[bi]
+                    if entry then
+                        btn._value = entry.value
+                        btn._lbl:SetText(entry.label)
+                        local active = (entry.value == cur)
+                        btn._bg:SetColorTexture(
+                            active and 0.973 or 0.15,
+                            active and 0.839 or 0.15,
+                            active and 0.604 or 0.15,
+                            active and 0.25  or 0.8)
+                        btn._lbl:SetTextColor(active and 1 or 0.7, active and 1 or 0.7, active and 1 or 0.7)
+                        btn:Show()
+                    else
+                        btn:Hide()
+                    end
+                end
+                cogPopup._gLabel:Show()
+            else
+                cogPopup._growthGet = nil
+                cogPopup._growthSet = nil
+                cogPopup._gLabel:Hide()
+                for _, btn in ipairs(cogPopup._gBtns) do btn:Hide() end
+            end
+
+            -- Compute height based on visible rows
+            do
                 local p = cogPopup
-                cogPopup:SetHeight(p._TOP_PAD + p._TITLE_H + p._TITLE_GAP + p._GAP + p._SLIDER_H + p._GAP + p._SLIDER_H + p._TOP_PAD)
+                local rowH = p._SLIDER_H
+                local gap  = p._GAP
+                local rows = 2  -- X + Y always present
+                if hasSize   then rows = rows + 1 end
+                if hasGrowth then rows = rows + 1 end
+                local h = p._TOP_PAD + p._TITLE_H + p._TITLE_GAP
+                for r = 1, rows do
+                    h = h + gap + (r < rows and rowH or p._GROWTH_ROW_H)
+                end
+                -- last row uses GROWTH_ROW_H only if growth is the last row
+                -- recalculate cleanly
+                h = p._TOP_PAD + p._TITLE_H + p._TITLE_GAP
+                    + gap + rowH   -- X
+                    + gap + rowH   -- Y
+                if hasSize   then h = h + gap + rowH end
+                if hasGrowth then h = h + gap + p._GROWTH_ROW_H end
+                h = h + p._TOP_PAD
+                cogPopup:SetHeight(h)
             end
 
             -- Anchor above the icon
@@ -3561,7 +3679,22 @@ initFrame:SetScript("OnEvent", function(self)
             btn:SetScript("OnClick", function(self)
                 if CorePosOffDisabled(posKey) then return end
                 local sizeKey = posKey .. "SlotSize"
-                ShowCogPopup(self, {
+                local growthKey = posKey .. "SlotGrowth"
+                local growthValues
+                if posKey == "topleft" then
+                    growthValues = {
+                        { value = "left",  label = "Left"  },
+                        { value = "right", label = "Right" },
+                        { value = "up",    label = "Up"    },
+                    }
+                elseif posKey == "topright" then
+                    growthValues = {
+                        { value = "right", label = "Right" },
+                        { value = "left",  label = "Left"  },
+                        { value = "up",    label = "Up"    },
+                    }
+                end
+                local opts = {
                     title = slotLabel .. " Slot Settings",
                     xGet = function() return CorePosXGet(posKey) end,
                     xSet = function(v) CorePosXSet(posKey, v) end,
@@ -3570,7 +3703,13 @@ initFrame:SetScript("OnEvent", function(self)
                     sizeGet = function() return DBVal(sizeKey) or defaults[sizeKey] end,
                     sizeSet = function(v) DB()[sizeKey] = v; RefreshAllSlots(); UpdatePreview() end,
                     sizeMin = 10, sizeMax = 50,
-                })
+                }
+                if growthValues then
+                    opts.growthGet    = function() return DBVal(growthKey) or defaults[growthKey] end
+                    opts.growthSet    = function(v) DB()[growthKey] = v; RefreshAllSlots(); UpdatePreview() end
+                    opts.growthValues = growthValues
+                end
+                ShowCogPopup(self, opts)
             end)
             EllesmereUI.RegisterWidgetRefresh(function()
                 local off = CorePosOffDisabled(posKey)

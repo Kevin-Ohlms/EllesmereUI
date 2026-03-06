@@ -1045,14 +1045,32 @@ initFrame:SetScript("OnEvent", function(self)
                 tooltip = "Apply Width to all Bars",
                 onClick = function()
                     local p = DB(); if not p then return end
-                    local v = p.secondary.pipWidth or 20
-                    p.primary.width = v; p.health.width = v
+                    local sec = _G._ERB_GetSecondaryResource and _G._ERB_GetSecondaryResource()
+                    local totalW
+                    if sec and sec.type ~= "bar" then
+                        local maxPts = sec.max or 5
+                        local pw = p.secondary.pipWidth or 42
+                        local ps = p.secondary.pipSpacing or 1
+                        totalW = maxPts * pw + (maxPts - 1) * ps
+                    else
+                        totalW = p.secondary.pipWidth or 42
+                    end
+                    p.primary.width = totalW; p.health.width = totalW
                     SmoothRefresh(); EllesmereUI:RefreshPage()
                 end,
                 isSynced = function()
                     local p = DB(); if not p then return false end
-                    local v = p.secondary.pipWidth or 20
-                    return (p.primary.width or 220) == v and (p.health.width or 220) == v
+                    local sec = _G._ERB_GetSecondaryResource and _G._ERB_GetSecondaryResource()
+                    local totalW
+                    if sec and sec.type ~= "bar" then
+                        local maxPts = sec.max or 5
+                        local pw = p.secondary.pipWidth or 42
+                        local ps = p.secondary.pipSpacing or 1
+                        totalW = maxPts * pw + (maxPts - 1) * ps
+                    else
+                        totalW = p.secondary.pipWidth or 42
+                    end
+                    return (p.primary.width or 220) == totalW and (p.health.width or 220) == totalW
                 end,
                 flashTargets = function() return { _syncRows.classWidth, _syncRows.powerWidth, _syncRows.healthWidth } end,
             })
@@ -1549,13 +1567,32 @@ initFrame:SetScript("OnEvent", function(self)
                 onClick = function()
                     local p = DB(); if not p then return end
                     local v = p.primary.width or 220
-                    p.secondary.pipWidth = v; p.health.width = v
+                    -- Back-calculate pipWidth from total width for pip-based specs
+                    local sec = _G._ERB_GetSecondaryResource and _G._ERB_GetSecondaryResource()
+                    if sec and sec.type ~= "bar" then
+                        local maxPts = sec.max or 5
+                        local ps = p.secondary.pipSpacing or 1
+                        p.secondary.pipWidth = math.floor((v - (maxPts - 1) * ps) / maxPts)
+                    else
+                        p.secondary.pipWidth = v
+                    end
+                    p.health.width = v
                     SmoothRefresh(); EllesmereUI:RefreshPage()
                 end,
                 isSynced = function()
                     local p = DB(); if not p then return false end
                     local v = p.primary.width or 220
-                    return (p.secondary.pipWidth or 20) == v and (p.health.width or 220) == v
+                    local sec = _G._ERB_GetSecondaryResource and _G._ERB_GetSecondaryResource()
+                    local totalW
+                    if sec and sec.type ~= "bar" then
+                        local maxPts = sec.max or 5
+                        local pw = p.secondary.pipWidth or 42
+                        local ps = p.secondary.pipSpacing or 1
+                        totalW = maxPts * pw + (maxPts - 1) * ps
+                    else
+                        totalW = p.secondary.pipWidth or 42
+                    end
+                    return totalW == v and (p.health.width or 220) == v
                 end,
                 flashTargets = function() return { _syncRows.powerWidth, _syncRows.classWidth, _syncRows.healthWidth } end,
             })
@@ -1808,30 +1845,12 @@ initFrame:SetScript("OnEvent", function(self)
                   p.primary.anchorPosition = v; SmoothRefresh()
               end }
         );  y = y - h
-        -- Inline DIRECTIONS cog on Anchor Position for growth + x/y
+        -- Inline DIRECTIONS cog on Anchor Position for x/y
         do
             local rgn = powerAnchorRow._rightRegion
             local _, cogShow = EllesmereUI.BuildCogPopup({
                 title = "Power Bar Anchor",
                 rows = {
-                    { type = "dropdown", label = "Growth",
-                      values = { UP = "Up", DOWN = "Down", LEFT = "Left", RIGHT = "Right" },
-                      order = { "UP", "DOWN", "LEFT", "RIGHT" },
-                      disabled = function() local p = DB(); return p and (p.primary.anchorTo or "none") == "mouse" end,
-                      disabledTooltip = EllesmereUI.DisabledTooltip("Not available for Mouse Cursor anchor"),
-                      get = function() local p = DB(); return p and p.primary.growthDirection or "UP" end,
-                      set = function(v)
-                          local p = DB(); if not p then return end
-                          p.primary.growthDirection = v; SmoothRefresh()
-                      end },
-                    { type = "toggle", label = "Grow Centered",
-                      disabled = function() local p = DB(); return p and (p.primary.anchorTo or "none") == "mouse" end,
-                      disabledTooltip = EllesmereUI.DisabledTooltip("Not available for Mouse Cursor anchor"),
-                      get = function() local p = DB(); return p and p.primary.growCentered ~= false end,
-                      set = function(v)
-                          local p = DB(); if not p then return end
-                          p.primary.growCentered = v; SmoothRefresh()
-                      end },
                     { type = "slider", label = "X Offset", min = -125, max = 125, step = 1,
                       get = function() local p = DB(); return p and p.primary.anchorX or 0 end,
                       set = function(v)
@@ -1952,13 +1971,32 @@ initFrame:SetScript("OnEvent", function(self)
                 onClick = function()
                     local p = DB(); if not p then return end
                     local v = p.health.width or 220
-                    p.secondary.pipWidth = v; p.primary.width = v
+                    -- Back-calculate pipWidth from total width for pip-based specs
+                    local sec = _G._ERB_GetSecondaryResource and _G._ERB_GetSecondaryResource()
+                    if sec and sec.type ~= "bar" then
+                        local maxPts = sec.max or 5
+                        local ps = p.secondary.pipSpacing or 1
+                        p.secondary.pipWidth = math.floor((v - (maxPts - 1) * ps) / maxPts)
+                    else
+                        p.secondary.pipWidth = v
+                    end
+                    p.primary.width = v
                     SmoothRefresh(); EllesmereUI:RefreshPage()
                 end,
                 isSynced = function()
                     local p = DB(); if not p then return false end
                     local v = p.health.width or 220
-                    return (p.secondary.pipWidth or 20) == v and (p.primary.width or 220) == v
+                    local sec = _G._ERB_GetSecondaryResource and _G._ERB_GetSecondaryResource()
+                    local totalW
+                    if sec and sec.type ~= "bar" then
+                        local maxPts = sec.max or 5
+                        local pw = p.secondary.pipWidth or 42
+                        local ps = p.secondary.pipSpacing or 1
+                        totalW = maxPts * pw + (maxPts - 1) * ps
+                    else
+                        totalW = p.secondary.pipWidth or 42
+                    end
+                    return (p.primary.width or 220) == v and totalW == v
                 end,
                 flashTargets = function() return { _syncRows.healthWidth, _syncRows.classWidth, _syncRows.powerWidth } end,
             })
@@ -2214,30 +2252,12 @@ initFrame:SetScript("OnEvent", function(self)
                   p.health.anchorPosition = v; SmoothRefresh()
               end }
         );  y = y - h
-        -- Inline DIRECTIONS cog on Anchor Position for growth + x/y
+        -- Inline DIRECTIONS cog on Anchor Position for x/y
         do
             local rgn = healthAnchorRow._rightRegion
             local _, cogShow = EllesmereUI.BuildCogPopup({
                 title = "Health Bar Anchor",
                 rows = {
-                    { type = "dropdown", label = "Growth",
-                      values = { UP = "Up", DOWN = "Down", LEFT = "Left", RIGHT = "Right" },
-                      order = { "UP", "DOWN", "LEFT", "RIGHT" },
-                      disabled = function() local p = DB(); return p and (p.health.anchorTo or "none") == "mouse" end,
-                      disabledTooltip = EllesmereUI.DisabledTooltip("Not available for Mouse Cursor anchor"),
-                      get = function() local p = DB(); return p and p.health.growthDirection or "UP" end,
-                      set = function(v)
-                          local p = DB(); if not p then return end
-                          p.health.growthDirection = v; SmoothRefresh()
-                      end },
-                    { type = "toggle", label = "Grow Centered",
-                      disabled = function() local p = DB(); return p and (p.health.anchorTo or "none") == "mouse" end,
-                      disabledTooltip = EllesmereUI.DisabledTooltip("Not available for Mouse Cursor anchor"),
-                      get = function() local p = DB(); return p and p.health.growCentered ~= false end,
-                      set = function(v)
-                          local p = DB(); if not p then return end
-                          p.health.growCentered = v; SmoothRefresh()
-                      end },
                     { type = "slider", label = "X Offset", min = -125, max = 125, step = 1,
                       get = function() local p = DB(); return p and p.health.anchorX or 0 end,
                       set = function(v)

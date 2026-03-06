@@ -1358,15 +1358,10 @@ initFrame:SetScript("OnEvent", function(self)
                   end
                   EllesmereUI:RefreshPage()
               end },
-            { type="label", text="" });  y = y - h
-
-        _, h = W:DualRow(parent, y,
-            { type="label", text="" },
             { type="dropdown", text="Orientation",
               values=orientValues, order=orientOrder,
               disabled=_blizzDis, disabledTooltip=BLIZZ_DIS_TIP,
               getValue=function()
-                  -- Both bars share orientation; read from XPBar
                   return EAB.db.profile.bars["XPBar"] and EAB.db.profile.bars["XPBar"].orientation or "HORIZONTAL"
               end,
               setValue=function(v)

@@ -24,25 +24,8 @@ local PAGE_ADDONS      = "Enabled Addons"
 local PAGE_PROFILES    = "Profiles"
 
 -------------------------------------------------------------------------------
---  FCT font — set the global as early as possible (file scope).
---  The WoW engine caches the damage font at login, so changes only take
---  effect after a full logout to character select (not just /reload).
+--  FCT font — handled by EllesmereUI_Startup.lua which runs earlier.
 -------------------------------------------------------------------------------
-do
-    -- Migrate FCT font path from old media root to fonts subfolder
-    if EllesmereUIDB and EllesmereUIDB.fctFont and type(EllesmereUIDB.fctFont) == "string" then
-        EllesmereUIDB.fctFont = EllesmereUIDB.fctFont:gsub("\\media\\Expressway", "\\media\\fonts\\Expressway")
-    end
-    local saved = EllesmereUIDB and EllesmereUIDB.fctFont
-    if saved and type(saved) == "string" and saved ~= "" then
-        _G.DAMAGE_TEXT_FONT = saved
-        -- The engine also reads from the CombatTextFont font object directly.
-        -- Setting the global alone is not enough in modern WoW.
-        if _G.CombatTextFont then
-            _G.CombatTextFont:SetFont(saved, 120, "")
-        end
-    end
-end
 
 -- Wait for EllesmereUI to exist
 local initFrame = CreateFrame("Frame")
@@ -50,16 +33,7 @@ initFrame:RegisterEvent("PLAYER_LOGIN")
 initFrame:SetScript("OnEvent", function(self)
     self:UnregisterEvent("PLAYER_LOGIN")
 
-    -- Re-apply combat text font at login (CombatTextFont may not exist at file scope)
-    do
-        local saved = EllesmereUIDB and EllesmereUIDB.fctFont
-        if saved and type(saved) == "string" and saved ~= "" then
-            _G.DAMAGE_TEXT_FONT = saved
-            if _G.CombatTextFont then
-                _G.CombatTextFont:SetFont(saved, 120, "")
-            end
-        end
-    end
+    -- Re-apply combat text font at login — handled by EllesmereUI_Startup.lua.
 
     if not EllesmereUI or not EllesmereUI.RegisterModule then return end
     local PP = EllesmereUI.PanelPP
@@ -695,21 +669,23 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUI:RefreshPage()
               end },
             { type="dropdown", text="Window Scale",
-              values={ ["Small (90%)"]="Small (90%)", ["Normal (100%)"]="Normal (100%)", ["Large (110%)"]="Large (110%)", ["Huge (120%)"]="Huge (120%)" },
-              order={ "Small (90%)", "Normal (100%)", "Large (110%)", "Huge (120%)" },
+              values={ ["Small (90%)"]="Small (90%)", ["Normal (100%)"]="Normal (100%)", ["Large (110%)"]="Large (110%)", ["Huge (125%)"]="Huge (125%)", ["Massive (150%)"]="Massive (150%)" },
+              order={ "Small (90%)", "Normal (100%)", "Large (110%)", "Huge (125%)", "Massive (150%)" },
               getValue=function()
                 local raw = (EllesmereUIDB and EllesmereUIDB.panelScale) or 1.0
                 local pct = floor(raw * 100 + 0.5)
-                if pct == 90  then return "Small (90%)"  end
-                if pct == 110 then return "Large (110%)" end
-                if pct == 120 then return "Huge (120%)"  end
+                if pct == 90  then return "Small (90%)"   end
+                if pct == 110 then return "Large (110%)"  end
+                if pct == 125 then return "Huge (125%)"   end
+                if pct == 150 then return "Massive (150%)" end
                 return "Normal (100%)"
               end,
               setValue=function(v)
                 local scale = 1.0
-                if v == "Small (90%)"  then scale = 0.90
-                elseif v == "Large (110%)" then scale = 1.10
-                elseif v == "Huge (120%)"  then scale = 1.20 end
+                if v == "Small (90%)"    then scale = 0.90
+                elseif v == "Large (110%)"  then scale = 1.10
+                elseif v == "Huge (125%)"   then scale = 1.25
+                elseif v == "Massive (150%)" then scale = 1.50 end
                 if EllesmereUI.SetPanelScale then
                     EllesmereUI:SetPanelScale(scale)
                 end
@@ -2199,6 +2175,34 @@ initFrame:SetScript("OnEvent", function(self)
         --  FONTS section
         -------------------------------------------------------------------
         _, h = W:SectionHeader(parent, "FONTS", y);  y = y - h
+
+        -- For locales that require system fonts (CJK, Cyrillic), the font
+        -- selection dropdowns are not applicable — the system font is used
+        -- automatically regardless of what is selected here.
+        if EllesmereUI.LOCALE_FONT_FALLBACK then
+            local noticeFrame = CreateFrame("Frame", nil, parent)
+            local totalW = parent:GetWidth() - EllesmereUI.CONTENT_PAD * 2
+            PP.Size(noticeFrame, totalW, 70)
+            PP.Point(noticeFrame, "TOPLEFT", parent, "TOPLEFT", EllesmereUI.CONTENT_PAD, y)
+            EllesmereUI.RowBg(noticeFrame, parent)
+
+            local icon = noticeFrame:CreateTexture(nil, "ARTWORK")
+            icon:SetTexture("Interface\\DialogFrame\\UI-Dialog-Icon-AlertOther")
+            PP.Size(icon, 24, 24)
+            PP.Point(icon, "LEFT", noticeFrame, "LEFT", 16, 0)
+            icon:SetVertexColor(EllesmereUI.ELLESMERE_GREEN.r, EllesmereUI.ELLESMERE_GREEN.g, EllesmereUI.ELLESMERE_GREEN.b)
+
+            local msg = noticeFrame:CreateFontString(nil, "OVERLAY")
+            msg:SetFont(EllesmereUI.EXPRESSWAY, 13, "")
+            msg:SetTextColor(1, 1, 1, 0.75)
+            msg:SetJustifyH("LEFT")
+            msg:SetPoint("LEFT", icon, "RIGHT", 12, 4)
+            msg:SetPoint("RIGHT", noticeFrame, "RIGHT", -16, 0)
+            msg:SetText("Your game client language uses a system font automatically.\nFont selection is not available for this locale.")
+
+            y = y - 70
+            return math.abs(y)
+        end
 
         local fontDropValues = {}
         local fontDropOrder  = {}

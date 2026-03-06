@@ -253,16 +253,16 @@ local DEFAULTS = {
         primary = {
             enabled     = true,
             width       = 214,
-            height      = 4,
+            height      = 14,
             scale       = 1.0,
-            borderSize  = 0,
+            borderSize  = 1,
             borderR     = 0, borderG = 0, borderB = 0, borderA = 1,
             darkTheme   = false,
             customColored = false,
             fillR       = playerPowerCC[1], fillG = playerPowerCC[2], fillB = playerPowerCC[3], fillA = 1,
             bgR         = 0x11/255, bgG = 0x11/255, bgB = 0x11/255, bgA = 0.75,
-            textFormat  = "none",  -- "none","curpp","perpp","both"
-            textSize    = 11,
+            textFormat  = "perpp",  -- "none","curpp","perpp","both"
+            textSize    = 10,
             textXOffset = 0,
             textYOffset = 0,
             offsetX     = 0,
@@ -446,20 +446,20 @@ local function MakePixelBorder(parent, r, g, b, a, size)
         return t
     end
     local eT = MkEdge()
-    PP.HeightFor(eT, sz, parent)
+    PP.Height(eT, sz)
     PP.Point(eT, "TOPLEFT",  bf, "TOPLEFT",  0, 0)
     PP.Point(eT, "TOPRIGHT", bf, "TOPRIGHT", 0, 0)
     local eB = MkEdge()
-    PP.HeightFor(eB, sz, parent)
+    PP.Height(eB, sz)
     PP.Point(eB, "BOTTOMLEFT",  bf, "BOTTOMLEFT",  0, 0)
     PP.Point(eB, "BOTTOMRIGHT", bf, "BOTTOMRIGHT", 0, 0)
     -- Vertical edges inset by size to avoid corner overlap
     local eL = MkEdge()
-    PP.WidthFor(eL, sz, parent)
+    PP.Width(eL, sz)
     PP.Point(eL, "TOPLEFT",    eT, "BOTTOMLEFT",  0, 0)
     PP.Point(eL, "BOTTOMLEFT", eB, "TOPLEFT",     0, 0)
     local eR = MkEdge()
-    PP.WidthFor(eR, sz, parent)
+    PP.Width(eR, sz)
     PP.Point(eR, "TOPRIGHT",    eT, "BOTTOMRIGHT",  0, 0)
     PP.Point(eR, "BOTTOMRIGHT", eB, "TOPRIGHT",     0, 0)
 
@@ -474,10 +474,10 @@ local function MakePixelBorder(parent, r, g, b, a, size)
             end
         end,
         SetSize = function(self, newSz)
-            PP.HeightFor(eT, newSz, parent)
-            PP.HeightFor(eB, newSz, parent)
-            PP.WidthFor(eL, newSz, parent)
-            PP.WidthFor(eR, newSz, parent)
+            PP.Height(eT, newSz)
+            PP.Height(eB, newSz)
+            PP.Width(eL, newSz)
+            PP.Width(eR, newSz)
         end,
         SetShown = function(self, shown)
             for _, e in ipairs(self.edges) do
@@ -684,13 +684,7 @@ local function RegisterUnlockElements()
             if healthBar then
                 healthBar:ClearAllPoints()
                 healthBar:SetPoint(point, UIParent, relPoint or point, x, y)
-                if scale then
-                    healthBar:SetScale(scale)
-                    -- Re-snap border thickness for the new effective scale
-                    if healthBar._border then
-                        healthBar:ApplyBorder(hp.borderSize or 1, hp.borderR or 0, hp.borderG or 0, hp.borderB or 0, hp.borderA or 1)
-                    end
-                end
+                if scale then healthBar:SetScale(scale) end
             end
         end,
         loadPosition = function()
@@ -741,13 +735,7 @@ local function RegisterUnlockElements()
             if primaryBar then
                 primaryBar:ClearAllPoints()
                 primaryBar:SetPoint(point, UIParent, relPoint or point, x, y)
-                if scale then
-                    primaryBar:SetScale(scale)
-                    -- Re-snap border thickness for the new effective scale
-                    if primaryBar._border then
-                        primaryBar:ApplyBorder(pp.borderSize or 1, pp.borderR or 0, pp.borderG or 0, pp.borderB or 0, pp.borderA or 1)
-                    end
-                end
+                if scale then primaryBar:SetScale(scale) end
             end
         end,
         loadPosition = function()
@@ -800,43 +788,18 @@ local function RegisterUnlockElements()
         savePosition = function(_, point, relPoint, x, y, scale)
             if not point then return end
             local sp = ERB.db.profile.secondary
-            -- Always store CENTER so the bar stays centered when pip count changes
-            if secondaryFrame then
-                local cx, cy = secondaryFrame:GetCenter()
-                if cx and cy then
-                    local es = secondaryFrame:GetEffectiveScale()
-                    local us = UIParent:GetEffectiveScale()
-                    local ux, uy = UIParent:GetCenter()
-                    x = (cx * es - ux * us) / us
-                    y = (cy * es - uy * us) / us
-                end
-            end
-            sp.unlockPos = { point = "CENTER", relPoint = "CENTER", x = x, y = y }
+            sp.unlockPos = { point = point, relPoint = relPoint or point, x = x, y = y }
             if scale then sp.scale = scale end
             if secondaryFrame then
                 secondaryFrame:ClearAllPoints()
-                secondaryFrame:SetPoint("CENTER", UIParent, "CENTER", x, y)
-                if scale then
-                    secondaryFrame:SetScale(scale)
-                    -- Re-snap pip border thicknesses for the new effective scale
-                    if pips then
-                        for _, pip in ipairs(pips) do
-                            if pip._border then
-                                pip:ApplyBorder(sp.borderSize or 1, sp.borderR or 0, sp.borderG or 0, sp.borderB or 0, sp.borderA or 1)
-                            end
-                        end
-                    end
-                    if secondaryFrame._barBorder then
-                        secondaryFrame._barBorder:SetSize(sp.borderSize or 1)
-                    end
-                end
+                secondaryFrame:SetPoint(point, UIParent, relPoint or point, x, y)
+                if scale then secondaryFrame:SetScale(scale) end
             end
         end,
         loadPosition = function()
             local pos = ERB.db.profile.secondary.unlockPos
             if not pos then return nil end
-            -- Always use CENTER for consistent centering across pip counts
-            return { point = "CENTER", relPoint = "CENTER", x = pos.x, y = pos.y }
+            return { point = pos.point, relPoint = pos.relPoint or pos.point, x = pos.x, y = pos.y }
         end,
         clearPosition = function()
             local sp = ERB.db.profile.secondary
@@ -853,7 +816,7 @@ local function RegisterUnlockElements()
             if not pos then return end
             if secondaryFrame then
                 secondaryFrame:ClearAllPoints()
-                secondaryFrame:SetPoint("CENTER", UIParent, "CENTER", pos.x or 0, pos.y or 0)
+                secondaryFrame:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x or 0, pos.y or 0)
                 secondaryFrame:SetScale(sp.scale or 1)
             end
         end,
@@ -881,15 +844,7 @@ local function RegisterUnlockElements()
             if castBarFrame then
                 castBarFrame:ClearAllPoints()
                 castBarFrame:SetPoint(point, UIParent, relPoint or point, x, y)
-                if scale then
-                    castBarFrame:SetScale(scale)
-                    -- Re-snap border thickness for the new effective scale
-                    local snappedBs = PP.ScaleFor(cb.borderSize or 1, castBarFrame)
-                    castBarFrame._bT:SetHeight(snappedBs)
-                    castBarFrame._bB:SetHeight(snappedBs)
-                    castBarFrame._bL:SetWidth(snappedBs)
-                    castBarFrame._bR:SetWidth(snappedBs)
-                end
+                if scale then castBarFrame:SetScale(scale) end
             end
         end,
         loadPosition = function()
@@ -1289,11 +1244,11 @@ local function BuildBars()
         end
 
         if sp.unlockPos and sp.unlockPos.point then
-            -- Position fully managed by unlock mode — always use CENTER for consistent centering
+            -- Position fully managed by unlock mode
             secondaryFrame:SetScale(sp.scale or 1)
             secondaryFrame:SetSize(totalW, pipH)
             secondaryFrame:ClearAllPoints()
-            secondaryFrame:SetPoint("CENTER", UIParent, "CENTER", sp.unlockPos.x or 0, sp.unlockPos.y or 0)
+            secondaryFrame:SetPoint(sp.unlockPos.point, UIParent, sp.unlockPos.relPoint or sp.unlockPos.point, sp.unlockPos.x or 0, sp.unlockPos.y or 0)
         elseif sp.anchorTo and sp.anchorTo ~= "none" then
             secondaryFrame:SetScale(sp.scale or 1)
             secondaryFrame:SetSize(totalW, pipH)
@@ -2269,31 +2224,29 @@ BuildCastBar = function()
     local br, bg2, bb, ba = cb.borderR, cb.borderG, cb.borderB, cb.borderA
     for _, edge in ipairs({ castBarFrame._bT, castBarFrame._bB, castBarFrame._bL, castBarFrame._bR }) do
         edge:SetColorTexture(br, bg2, bb, ba)
-        PP.DisablePixelSnap(edge)
     end
-    local snappedBs = PP.ScaleFor(bs, castBarFrame)
     castBarFrame._bT:ClearAllPoints()
     castBarFrame._bT:SetPoint("TOPLEFT", castBarFrame, "TOPLEFT", 0, 0)
     castBarFrame._bT:SetPoint("TOPRIGHT", castBarFrame, "TOPRIGHT", 0, 0)
-    castBarFrame._bT:SetHeight(snappedBs)
+    castBarFrame._bT:SetHeight(bs)
     castBarFrame._bB:ClearAllPoints()
     castBarFrame._bB:SetPoint("BOTTOMLEFT", castBarFrame, "BOTTOMLEFT", 0, 0)
     castBarFrame._bB:SetPoint("BOTTOMRIGHT", castBarFrame, "BOTTOMRIGHT", 0, 0)
-    castBarFrame._bB:SetHeight(snappedBs)
+    castBarFrame._bB:SetHeight(bs)
     castBarFrame._bL:ClearAllPoints()
     castBarFrame._bL:SetPoint("TOPLEFT", castBarFrame._bT, "BOTTOMLEFT", 0, 0)
     castBarFrame._bL:SetPoint("BOTTOMLEFT", castBarFrame._bB, "TOPLEFT", 0, 0)
-    castBarFrame._bL:SetWidth(snappedBs)
+    castBarFrame._bL:SetWidth(bs)
     castBarFrame._bR:ClearAllPoints()
     castBarFrame._bR:SetPoint("TOPRIGHT", castBarFrame._bT, "BOTTOMRIGHT", 0, 0)
     castBarFrame._bR:SetPoint("BOTTOMRIGHT", castBarFrame._bB, "TOPRIGHT", 0, 0)
-    castBarFrame._bR:SetWidth(snappedBs)
+    castBarFrame._bR:SetWidth(bs)
 
     -- Bar inset by border
     local bar = castBarFrame._bar
     bar:ClearAllPoints()
-    bar:SetPoint("TOPLEFT", castBarFrame, "TOPLEFT", snappedBs, -snappedBs)
-    bar:SetPoint("BOTTOMRIGHT", castBarFrame, "BOTTOMRIGHT", -snappedBs, snappedBs)
+    bar:SetPoint("TOPLEFT", castBarFrame, "TOPLEFT", bs, -bs)
+    bar:SetPoint("BOTTOMRIGHT", castBarFrame, "BOTTOMRIGHT", -bs, bs)
 
     -- Bar texture
     local texKey = cb.texture
@@ -2873,12 +2826,6 @@ function ERB:OnInitialize()
     if sv and not sv._liteMigrated then
         self.db:ResetProfile()
         sv._liteMigrated = true
-    end
-    -- Second migration pass: clears any remaining corrupt state from the first
-    -- migration that left sub-tables in a bad state for some users.
-    if sv and not sv._liteMigrated2 then
-        self.db:ResetProfile()
-        sv._liteMigrated2 = true
     end
 
     _G._ERB_AceDB = self.db

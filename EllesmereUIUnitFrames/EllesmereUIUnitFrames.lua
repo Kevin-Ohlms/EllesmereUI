@@ -1,4 +1,4 @@
-local addonName, ns = ...
+﻿local addonName, ns = ...
 
 local oUF = ns.oUF or oUF
 local PP = EllesmereUI.PP
@@ -507,9 +507,21 @@ local fontPaths = {
     ["Skurri"]              = "Fonts\\skurri.ttf",
 }
 
-local cachedFontPath = fontPaths["Expressway"]
+-- Locale system font override: for CJK/Cyrillic clients, bypass all custom
+-- fonts and use the WoW built-in font that supports the locale's glyphs.
+local LOCALE_FONT_OVERRIDE = EllesmereUI and EllesmereUI.LOCALE_FONT_FALLBACK
+
+local cachedFontPath = LOCALE_FONT_OVERRIDE or fontPaths["Expressway"]
 local cachedFontPaths = {}  -- per-unit font cache
 local function ResolveFontPath(unitKey)
+    -- Locale override takes absolute priority — no custom font can render CJK/Cyrillic
+    if LOCALE_FONT_OVERRIDE then
+        cachedFontPath = LOCALE_FONT_OVERRIDE
+        for _, uKey in ipairs({"player", "target", "focus", "boss", "pet", "totPet"}) do
+            cachedFontPaths[uKey] = LOCALE_FONT_OVERRIDE
+        end
+        return
+    end
     -- Global font system overrides per-unit fonts
     if EllesmereUI and EllesmereUI.GetFontPath then
         local gPath = EllesmereUI.GetFontPath("unitFrames")
@@ -5080,11 +5092,30 @@ function InitializeFrames()
         end
     end
 
-    if db.profile.player.showPlayerCastbar and PlayerCastingBarFrame then
+    -- Always suppress the Blizzard default castbar — we have our own.
+    -- This must run unconditionally so zone changes (portals, etc.) can't
+    -- re-show it even when the player castbar setting is disabled.
+    if PlayerCastingBarFrame then
         PlayerCastingBarFrame:UnregisterAllEvents()
         PlayerCastingBarFrame:Hide()
         PlayerCastingBarFrame:SetScript("OnUpdate", nil)
-        hooksecurefunc(PlayerCastingBarFrame, "Show", function(self) self:Hide() end)
+        if not PlayerCastingBarFrame._euiShowHooked then
+            PlayerCastingBarFrame._euiShowHooked = true
+            hooksecurefunc(PlayerCastingBarFrame, "Show", function(self) self:Hide() end)
+        end
+    end
+    -- Re-suppress after zone changes: Blizzard re-registers events on PlayerCastingBarFrame
+    -- on PLAYER_ENTERING_WORLD, which lets it show again on the next cast.
+    -- The hooksecurefunc on Show above already makes it permanently invisible,
+    -- but hiding it here prevents even a single-frame flash before the hook fires.
+    do
+        local cbSuppressFrame = CreateFrame("Frame")
+        cbSuppressFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+        cbSuppressFrame:SetScript("OnEvent", function()
+            if PlayerCastingBarFrame then
+                PlayerCastingBarFrame:Hide()
+            end
+        end)
     end
 
     -- Resize frame and portrait to account for class power pips above health bar
@@ -5804,13 +5835,17 @@ local EllesmereUF = EllesmereUI.Lite.NewAddon("EllesmereUIUnitFrames")
 -- Migrate old shared playerTarget table into separate player/target sub-tables
 local function MigratePlayerTarget()
     local p = db.profile
-    -- Skip if already migrated (player sub-table has been populated)
-    if p.player and p.player.frameWidth and p.player.frameWidth ~= defaults.profile.player.frameWidth then return end
-    -- Also skip if the old table doesn't exist
+    -- Use a dedicated flag so this migration runs exactly once.
+    -- The old guard (checking frameWidth != default) was unreliable: users
+    -- with frameWidth at the default value would re-run migration every load,
+    -- overwriting their saved healthHeight/powerHeight with the old defaults.
+    if p._playerTargetMigrated then return end
+    -- Skip if the old table doesn't exist (new installs)
     local old = p.playerTarget
-    if not old then return end
-    -- Only migrate if the old table has been customized (not just defaults)
-    -- We check if any value differs from the default playerTarget
+    if not old then
+        p._playerTargetMigrated = true
+        return
+    end
     local oldDef = defaults.profile.playerTarget
 
     -- Copy shared values into player table
@@ -5842,6 +5877,8 @@ local function MigratePlayerTarget()
     p.target.onlyPlayerDebuffs = old.onlyPlayerDebuffs or false
     p.target.showPortrait = p.showPortrait  -- migrate from root level
 
+    -- Mark as done so this never runs again
+    p._playerTargetMigrated = true
     -- Leave old playerTarget intact for backward compat
 end
 
@@ -5853,15 +5890,6 @@ function EllesmereUF:OnInitialize()
     end
 
     db = EllesmereUI.Lite.NewDB("EllesmereUIUnitFramesDB", defaults, true)
-    local _ufSV = _G["EllesmereUIUnitFramesDB"]
-    if _ufSV and not _ufSV._liteMigrated then
-        db:ResetProfile()
-        _ufSV._liteMigrated = true
-    end
-    if _ufSV and not _ufSV._liteMigrated2 then
-        db:ResetProfile()
-        _ufSV._liteMigrated2 = true
-    end
     MigratePlayerTarget()
     -- Migrate old use3DPortrait boolean to new portraitMode string (one-time)
     do

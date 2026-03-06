@@ -1,0 +1,43 @@
+-------------------------------------------------------------------------------
+--  EllesmereUI_Startup.lua
+--  Runs as early as possible (first file after the Lite framework).
+--  Applies settings that the WoW engine caches at login time, before
+--  other addon files or PLAYER_LOGIN handlers have a chance to run.
+-------------------------------------------------------------------------------
+
+-- Apply the saved combat text font immediately at file scope.
+-- DAMAGE_TEXT_FONT must be set before the engine caches it at login.
+-- CombatTextFont may not exist yet here, so we also hook ADDON_LOADED
+-- to catch it as soon as it becomes available.
+do
+    -- Migrate old media path if needed
+    if EllesmereUIDB and EllesmereUIDB.fctFont and type(EllesmereUIDB.fctFont) == "string" then
+        EllesmereUIDB.fctFont = EllesmereUIDB.fctFont:gsub("\\media\\Expressway", "\\media\\fonts\\Expressway")
+    end
+
+    local function ApplyCombatTextFont()
+        local saved = EllesmereUIDB and EllesmereUIDB.fctFont
+        if not saved or type(saved) ~= "string" or saved == "" then return end
+        _G.DAMAGE_TEXT_FONT = saved
+        if _G.CombatTextFont then
+            _G.CombatTextFont:SetFont(saved, 120, "")
+        end
+    end
+
+    -- Apply immediately (sets DAMAGE_TEXT_FONT before engine caches it)
+    ApplyCombatTextFont()
+
+    -- Also apply on ADDON_LOADED in case CombatTextFont wasn't ready yet
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("ADDON_LOADED")
+    f:RegisterEvent("PLAYER_LOGIN")
+    f:SetScript("OnEvent", function(self, event, addonName)
+        if event == "PLAYER_LOGIN" then
+            self:UnregisterEvent("ADDON_LOADED")
+            self:UnregisterEvent("PLAYER_LOGIN")
+            ApplyCombatTextFont()
+        elseif event == "ADDON_LOADED" and addonName == "Blizzard_CombatText" then
+            ApplyCombatTextFont()
+        end
+    end)
+end
