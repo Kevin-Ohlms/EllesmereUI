@@ -8,15 +8,15 @@ describe("EllesmereUI utility helpers", function()
             end,
         }
 
-        assert.are.equal(42, EllesmereUI.SafeScrollRange(scrollFrame))
+        assert(EllesmereUI.SafeScrollRange(scrollFrame) == 42, "SafeScrollRange should pass through positive numeric scroll ranges")
     end)
 
     it("returns zero when the scroll range is missing, invalid, or non-positive", function()
-        assert.are.equal(0, EllesmereUI.SafeScrollRange({
+        assert(EllesmereUI.SafeScrollRange({
             GetVerticalScrollRange = function()
                 return 0
             end,
-        }))
+        }) == 0, "SafeScrollRange should coerce a zero range to zero")
 
         assert.are.equal(0, EllesmereUI.SafeScrollRange({
             GetVerticalScrollRange = function()

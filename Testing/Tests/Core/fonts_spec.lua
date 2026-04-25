@@ -1,5 +1,12 @@
 -- Font-related unit tests for the core addon file.
 
+local function assert_contains(haystack, needle, label)
+    assert(
+        type(haystack) == "string" and haystack:find(needle, 1, true),
+        label .. " should contain '" .. needle .. "', got '" .. tostring(haystack) .. "'"
+    )
+end
+
 describe("EllesmereUI font helpers", function()
     before_each(function()
         _G.EllesmereUIDB = nil
@@ -8,8 +15,8 @@ describe("EllesmereUI font helpers", function()
     it("resolves a bundled font path", function()
         local path = EllesmereUI.ResolveFontName("Expressway")
 
-        assert.is_string(path)
-        assert.is_truthy(path:find("Expressway", 1, true))
+        assert(type(path) == "string", "ResolveFontName should return a string path for bundled fonts")
+        assert_contains(path, "Expressway", "bundled font path")
     end)
 
     it("resolves Blizzard-managed fonts to Blizzard paths", function()
@@ -69,10 +76,11 @@ describe("EllesmereUI font helpers", function()
     it("builds the font dropdown with the global option at the top", function()
         local values, order = EllesmereUI.BuildFontDropdownData()
 
+        assert(order[1] == "__global", "font dropdown should put the global font pseudo-option first")
         assert.are.equal("__global", order[1])
         assert.are.equal("---", order[2])
         assert.are.equal("EUI Global Font", values.__global.text)
         assert.are.equal("Avant Garde (Naowh)", values["Avant Garde"].text)
-        assert.is_truthy(values["Expressway"].font:find("Expressway", 1, true))
+        assert_contains(values["Expressway"].font, "Expressway", "Expressway dropdown preview font")
     end)
 end)

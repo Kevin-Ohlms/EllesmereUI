@@ -46,11 +46,11 @@ describe("EllesmereUI visibility helpers", function()
     end)
 
     it("returns false when no non-macro visibility options are provided", function()
-        assert.is_false(EllesmereUI.CheckVisibilityOptionsNonMacro(nil))
+        assert(EllesmereUI.CheckVisibilityOptionsNonMacro(nil) == false, "missing non-macro visibility options should not force a hide")
     end)
 
     it("hides outside valid instances when only-instance visibility is enabled", function()
-        assert.is_true(EllesmereUI.CheckVisibilityOptionsNonMacro({ visOnlyInstances = true }))
+        assert(EllesmereUI.CheckVisibilityOptionsNonMacro({ visOnlyInstances = true }) == true, "visOnlyInstances should hide while the player is outside an instance")
 
         _G.GetInstanceInfo = function()
             return nil, "party", 8
@@ -91,7 +91,7 @@ describe("EllesmereUI visibility helpers", function()
     end)
 
     it("hides without a target when requested", function()
-        assert.is_true(EllesmereUI.CheckVisibilityOptions({ visHideNoTarget = true }))
+        assert(EllesmereUI.CheckVisibilityOptions({ visHideNoTarget = true }) == true, "visHideNoTarget should hide when no target exists")
 
         _G.UnitExists = function(unit)
             return unit == "target"
@@ -116,6 +116,7 @@ describe("EllesmereUI visibility helpers", function()
     it("maps visibility mode strings to the expected show state", function()
         local state = { inCombat = true, inRaid = false, inParty = true }
 
+        assert(EllesmereUI.CheckVisibilityMode("disabled", state) == false, "disabled visibility mode should never show")
         assert.is_false(EllesmereUI.CheckVisibilityMode("disabled", state))
         assert.is_false(EllesmereUI.CheckVisibilityMode("never", state))
         assert.is_true(EllesmereUI.CheckVisibilityMode("in_combat", state))

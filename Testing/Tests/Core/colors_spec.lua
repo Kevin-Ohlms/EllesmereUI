@@ -1,5 +1,12 @@
 -- Color helper coverage for core data helpers that do not need UI state.
 
+local function assert_close(actual, expected, label)
+    assert(
+        math.abs(actual - expected) < 1e-9,
+        label .. " should be " .. tostring(expected) .. ", got " .. tostring(actual)
+    )
+end
+
 describe("EllesmereUI color helpers", function()
     before_each(function()
         _G.EllesmereUIDB = nil
@@ -8,22 +15,23 @@ describe("EllesmereUI color helpers", function()
     it("darkens a color by the default fraction", function()
         local r, g, b = EllesmereUI.DarkenColor(1, 0.5, 0.25)
 
-        assert.is_true(math.abs(r - 0.9) < 1e-9)
-        assert.is_true(math.abs(g - 0.45) < 1e-9)
-        assert.is_true(math.abs(b - 0.225) < 1e-9)
+        assert_close(r, 0.9, "red channel after default darkening")
+        assert_close(g, 0.45, "green channel after default darkening")
+        assert_close(b, 0.225, "blue channel after default darkening")
     end)
 
     it("darkens a color by a caller-provided fraction", function()
         local r, g, b = EllesmereUI.DarkenColor(0.8, 0.6, 0.4, 0.25)
 
-        assert.is_true(math.abs(r - 0.6) < 1e-9)
-        assert.is_true(math.abs(g - 0.45) < 1e-9)
-        assert.is_true(math.abs(b - 0.3) < 1e-9)
+        assert_close(r, 0.6, "red channel after caller-provided darkening")
+        assert_close(g, 0.45, "green channel after caller-provided darkening")
+        assert_close(b, 0.3, "blue channel after caller-provided darkening")
     end)
 
     it("lazy-initializes the custom color database", function()
         local db = EllesmereUI.GetCustomColorsDB()
 
+        assert(db == _G.EllesmereUIDB.customColors, "GetCustomColorsDB should return and persist the same table instance")
         assert.are.same({}, db)
         assert.are.same(db, _G.EllesmereUIDB.customColors)
     end)
@@ -50,7 +58,7 @@ describe("EllesmereUI color helpers", function()
     end)
 
     it("returns nil for unknown power and resource keys", function()
-        assert.is_nil(EllesmereUI.GetPowerColor("UNKNOWN"))
+        assert(EllesmereUI.GetPowerColor("UNKNOWN") == nil, "unknown power keys should not resolve to a fallback color")
         assert.is_nil(EllesmereUI.GetResourceColor("UNKNOWN"))
     end)
 

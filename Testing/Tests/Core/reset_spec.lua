@@ -18,7 +18,7 @@ describe("EllesmereUI reset helpers", function()
     end)
 
     it("does not require a beta reset when no database exists", function()
-        assert.is_false(EllesmereUI.NeedsBetaReset())
+        assert(EllesmereUI.NeedsBetaReset() == false, "fresh installs without a DB should not prompt for a beta reset")
     end)
 
     it("requires a beta reset for old reset versions only", function()
@@ -32,6 +32,7 @@ describe("EllesmereUI reset helpers", function()
     it("stamps fresh installs with the required reset version", function()
         EllesmereUI.StampResetVersion()
 
+        assert(_G.EllesmereUIDB ~= nil, "StampResetVersion should create the root saved-variable table on fresh installs")
         assert.are.equal(9, _G.EllesmereUIDB._resetVersion)
     end)
 
@@ -46,7 +47,7 @@ describe("EllesmereUI reset helpers", function()
     it("does nothing when no reset is needed", function()
         _G.EllesmereUIDB = { _resetVersion = 9 }
 
-        assert.is_false(EllesmereUI.PerformResetWipe())
+        assert(EllesmereUI.PerformResetWipe() == false, "PerformResetWipe should be a no-op when the reset version is already current")
         assert.is_nil(EllesmereUI._showResetPopup)
     end)
 
@@ -60,7 +61,7 @@ describe("EllesmereUI reset helpers", function()
         _G.EllesmereUIResourceBarsDB = { enabled = true }
         _G.EllesmereUIUnitFramesDB = { enabled = true }
 
-        assert.is_true(EllesmereUI.PerformResetWipe())
+        assert(EllesmereUI.PerformResetWipe() == true, "PerformResetWipe should report that it wiped outdated saved variables")
         assert.are.equal(9, _G.EllesmereUIDB._resetVersion)
         assert.are.equal(0.9, _G.EllesmereUIDB.ppUIScale)
         assert.is_true(_G.EllesmereUIDB.ppUIScaleAuto)
@@ -77,7 +78,7 @@ describe("EllesmereUI reset helpers", function()
     it("protects installs with profiles but missing reset stamps from being wiped", function()
         _G.EllesmereUIDB = { profiles = { Default = {} } }
 
-        assert.is_false(EllesmereUI.PerformResetWipe())
+        assert(EllesmereUI.PerformResetWipe() == false, "profile-bearing installs without a reset stamp should be stamped, not wiped")
         assert.are.equal(9, _G.EllesmereUIDB._resetVersion)
     end)
 end)

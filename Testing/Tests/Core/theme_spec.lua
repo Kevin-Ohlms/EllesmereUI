@@ -1,9 +1,9 @@
 -- Theme helper coverage for pure theme resolution logic.
 
 local function assert_color_close(actualR, actualG, actualB, expectedR, expectedG, expectedB)
-    assert.is_true(math.abs(actualR - expectedR) < 1e-9)
-    assert.is_true(math.abs(actualG - expectedG) < 1e-9)
-    assert.is_true(math.abs(actualB - expectedB) < 1e-9)
+    assert(math.abs(actualR - expectedR) < 1e-9, "theme red channel should be " .. tostring(expectedR) .. ", got " .. tostring(actualR))
+    assert(math.abs(actualG - expectedG) < 1e-9, "theme green channel should be " .. tostring(expectedG) .. ", got " .. tostring(actualG))
+    assert(math.abs(actualB - expectedB) < 1e-9, "theme blue channel should be " .. tostring(expectedB) .. ", got " .. tostring(actualB))
 end
 
 describe("EllesmereUI theme helpers", function()
@@ -12,7 +12,7 @@ describe("EllesmereUI theme helpers", function()
     end)
 
     it("resolves the auto faction theme from the mocked player faction", function()
-        assert.are.equal("Alliance", EllesmereUI._ResolveFactionTheme("Faction (Auto)"))
+        assert(EllesmereUI._ResolveFactionTheme("Faction (Auto)") == "Alliance", "Faction (Auto) should resolve to the mocked player faction")
     end)
 
     it("keeps explicit theme names unchanged", function()

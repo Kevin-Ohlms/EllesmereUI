@@ -7,7 +7,7 @@ describe("EllesmereUI sync helpers", function()
     end)
 
     it("reports unsynced modules when the database is missing", function()
-        assert.is_false(EllesmereUI.IsModuleSynced("EllesmereUIBlizzardSkin"))
+        assert(EllesmereUI.IsModuleSynced("EllesmereUIBlizzardSkin") == false, "modules should default to unsynced when no sync database exists")
     end)
 
     it("reports synced modules from the saved database", function()
@@ -30,7 +30,7 @@ describe("EllesmereUI sync helpers", function()
 
         EllesmereUI._initSyncDefaults()
 
-        assert.is_true(_G.EllesmereUIDB._syncDefaultsStamped)
+        assert(_G.EllesmereUIDB._syncDefaultsStamped == true, "_initSyncDefaults should stamp fresh single-profile setups so they are not reinitialized repeatedly")
         assert.is_table(_G.EllesmereUIDB.syncedModules)
         assert.is_true(_G.EllesmereUIDB.syncedModules.EllesmereUIBlizzardSkin)
         assert.is_true(_G.EllesmereUIDB.syncedModules.EllesmereUIChat)
@@ -55,7 +55,7 @@ describe("EllesmereUI sync helpers", function()
         _G.EllesmereUIDB = {}
 
         EllesmereUI.SetModuleSynced("EllesmereUIChat", true)
-        assert.is_true(_G.EllesmereUIDB.syncedModules.EllesmereUIChat)
+        assert(_G.EllesmereUIDB.syncedModules.EllesmereUIChat == true, "SetModuleSynced should create and populate the sync table on demand")
 
         EllesmereUI.SetModuleSynced("EllesmereUIChat", false)
         assert.is_false(_G.EllesmereUIDB.syncedModules.EllesmereUIChat)
@@ -96,7 +96,7 @@ describe("EllesmereUI sync helpers", function()
 
         EllesmereUI.SetModuleSynced("EllesmereUIChat", true)
 
-        assert.is_true(_G.EllesmereUIDB.syncedModules.EllesmereUIChat)
+        assert(_G.EllesmereUIDB.syncedModules.EllesmereUIChat == true, "enabling sync should mark the module as synced before propagating addon data")
         assert.are.same(_G.EllesmereUIDB.profiles.Default.addons.EllesmereUIChat, _G.EllesmereUIDB.profiles.Alt.addons.EllesmereUIChat)
         assert.are.same(_G.EllesmereUIDB.profiles.Default.addons.EllesmereUIChat, _G.EllesmereUIDB.profiles.Third.addons.EllesmereUIChat)
 
