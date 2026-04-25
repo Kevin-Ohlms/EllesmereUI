@@ -1,13 +1,8 @@
 -- Bootstrap for running EllesmereUI unit tests outside of World of Warcraft.
 --
--- This file provides a minimal set of WoW globals and frame stubs so the
--- core addon file can be loaded in a plain Lua environment.
---
--- The test suite should remain focused on pure logic and helpers while
--- avoiding real UI rendering or runtime-only Blizzard APIs.
---
--- Keep this file intentionally minimal. Add stubs only when a real test needs
--- the addon to load one step further into WoW-specific code.
+-- This file provides the minimal WoW API surface needed to load the addon in a
+-- plain Lua environment. Keep it small: add stubs only when a real test needs
+-- to execute one step further into WoW-specific code.
 
 -- Required global expected by the addon's top-level file.
 EUI_HOST_ADDON = "EllesmereUI"
@@ -63,15 +58,12 @@ local function makeFrame()
     })
 end
 
--- Minimal parent frame placeholder used by CreateFrame.
 UIParent = makeFrame()
 
--- CreateFrame stub used by the addon during load and by tests.
 CreateFrame = function(...)
     return makeFrame()
 end
 
--- Locale and player state stubs.
 GetLocale = function()
     return "enUS"
 end
@@ -141,7 +133,6 @@ end
 min = math.min
 max = math.max
 
--- SavedVariables and addon metadata stubs.
 GetAddOnMetadata = function(...)
     return nil
 end
@@ -154,7 +145,6 @@ SetCVar = function(...)
     return nil
 end
 
--- Time and scheduling.
 GetTime = function()
     return 0
 end
@@ -171,7 +161,6 @@ C_Timer = {
     end,
 }
 
--- Addon loading helpers.
 IsAddOnLoaded = function(...)
     return false
 end
@@ -179,11 +168,8 @@ end
 hooksecurefunc = function(...) end
 LoadAddOn = function(...) return true end
 
--- Keep the standard print behavior in the test environment.
 print = print
 
--- Load the main addon file once for tests. This is the only production file
--- required by the current test suite at the moment.
 local chunk, err = loadfile("EllesmereUI.lua")
 if not chunk then
     error("Failed to load EllesmereUI.lua: " .. tostring(err))

@@ -1,10 +1,11 @@
 -- Central busted configuration for the repository test layout.
 --
--- The helper loads the WoW API bootstrap, while the pattern keeps discovery
--- focused on *_spec.lua files under Testing/Tests.
+-- Support files live under Testing/Support, while specs are grouped by domain
+-- under Testing/Tests. The runner points busted at this config so local runs
+-- and CI share identical discovery behavior.
 return {
   default = {
-    helper = "Testing/Tests/bootstrap.lua",
+    helper = "Testing/Support/bootstrap.lua",
     pattern = "_spec",
     verbose = true,
   },

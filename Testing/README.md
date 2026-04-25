@@ -4,18 +4,24 @@ This directory contains the standalone Lua test setup for EllesmereUI.
 It is the single home for test infrastructure, test specs, and generated local
 test artifacts.
 
+The layout is intentionally split by responsibility so the suite can grow
+without turning into one large bootstrap file and one large spec file.
+
 ## Structure
 
 - `Containerfile` - reusable container image for Lua 5.1 and `busted`
 - `.busted` - central `busted` configuration for helper loading and discovery
-- `Tests/bootstrap.lua` - WoW API bootstrap for loading `EllesmereUI.lua`
-- `Tests/ellesmereui_spec.lua` - current core helper unit tests
+- `Support/bootstrap.lua` - WoW API bootstrap for loading `EllesmereUI.lua`
+- `Tests/Core/` - pure core helper specs grouped by concern
+- `Tests/Modules/` - future module-specific specs for addon subfolders
 - `run-tests.ps1` - local PowerShell wrapper around Podman test execution
 - `TestResults/` - generated local test artifacts such as `busted.log` and `junit.xml`
 
 The intended split is:
 
-- `Testing/Tests` contains only test code and test bootstrap logic.
+- `Testing/Support` contains only shared bootstrap and future shared helpers.
+- `Testing/Tests/Core` contains pure helper/unit specs for `EllesmereUI.lua`, grouped by subject such as fonts, colors, themes, and reset logic.
+- `Testing/Tests/Modules` is reserved for specs that target individual addon modules.
 - `Testing/TestResults` contains only generated artifacts.
 - `Testing/Containerfile`, `Testing/.busted`, and `Testing/run-tests.ps1` define how tests are executed locally and in CI.
 
