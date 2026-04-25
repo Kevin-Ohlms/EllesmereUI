@@ -133,6 +133,19 @@ jobs:
           include_passed: true
           require_tests: true
 
+      - name: Upload test result artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          retention-days: 1
+          path: |
+            Testing/TestResults/busted.log
+            Testing/TestResults/junit.xml
+            Testing/TestResults/luacov.report.out
+            Testing/TestResults/luacov.stats.out
+          if-no-files-found: warn
+
       - name: Fail workflow on test errors
         if: always() && steps.unit-tests.outputs.exit_code != '0'
         shell: bash
