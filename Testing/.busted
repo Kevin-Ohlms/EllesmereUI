@@ -1,0 +1,11 @@
+-- Central busted configuration for the repository test layout.
+--
+-- The helper loads the WoW API bootstrap, while the pattern keeps discovery
+-- focused on *_spec.lua files under Testing/Tests.
+return {
+  default = {
+    helper = "Testing/Tests/bootstrap.lua",
+    pattern = "_spec",
+    verbose = true,
+  },
+}

@@ -1,3 +1,5 @@
+-- Focus these specs on pure helper behavior that can be exercised safely in
+-- the lightweight bootstrap environment.
 describe("EllesmereUI core helpers", function()
     before_each(function()
         EllesmereUIDB = nil

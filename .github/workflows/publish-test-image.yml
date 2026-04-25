@@ -1,12 +1,17 @@
 name: Publish Test Image
 
+# Build and publish the reusable Lua test runner image.
+#
+# The CI workflow consumes this image directly from GHCR, so rebuilds are only
+# needed when the container definition or this publish workflow changes.
+
 on:
   push:
     branches:
       - main
       - master
     paths:
-      - Containerfile.tests
+      - Testing/Containerfile
       - .github/workflows/publish-test-image.yml
   workflow_dispatch:
 
@@ -45,7 +50,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Containerfile.tests
+          file: Testing/Containerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -1,8 +1,10 @@
 name: CI
 
-# Continuous integration workflow for running local Lua unit tests.
-# This workflow is intentionally separated from the release workflow,
-# because it validates code changes on every branch and pull request.
+# Run Lua unit tests for the addon against the published GHCR test image.
+#
+# This workflow does not rebuild the image. It pulls the latest published
+# testing image, executes the suite from Testing/Tests, and publishes the
+# JUnit summary directly in the GitHub Actions UI.
 
 on:
   push:
@@ -44,11 +46,11 @@ jobs:
         id: unit-tests
         shell: bash
         run: |
-          mkdir -p .testresults
+          mkdir -p Testing/TestResults
           set +e
-          docker run --rm -v "$PWD:/workspace" -w /workspace "${{ steps.image.outputs.name }}" tests | tee .testresults/busted.log
+          docker run --rm -v "$PWD:/workspace" -w /workspace "${{ steps.image.outputs.name }}" -f Testing/.busted Testing/Tests | tee Testing/TestResults/busted.log
           plain_exit=${PIPESTATUS[0]}
-          docker run --rm -v "$PWD:/workspace" -w /workspace "${{ steps.image.outputs.name }}" -o junit -Xoutput .testresults/junit.xml tests
+          docker run --rm -v "$PWD:/workspace" -w /workspace "${{ steps.image.outputs.name }}" -f Testing/.busted -o junit -Xoutput Testing/TestResults/junit.xml Testing/Tests
           junit_exit=$?
           exit_code=$plain_exit
           if [ "$exit_code" -eq 0 ] && [ "$junit_exit" -ne 0 ]; then
@@ -61,18 +63,10 @@ jobs:
         if: always()
         uses: mikepenz/action-junit-report@v5
         with:
-          report_paths: .testresults/junit.xml
+          report_paths: Testing/TestResults/junit.xml
           detailed_summary: true
           include_passed: true
           require_tests: true
-
-      - name: Upload test artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lua-test-results
-          path: .testresults/
-          if-no-files-found: error
 
       - name: Fail workflow on test errors
         if: always() && steps.unit-tests.outputs.exit_code != '0'

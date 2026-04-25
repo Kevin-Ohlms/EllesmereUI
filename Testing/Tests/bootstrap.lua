@@ -5,8 +5,11 @@
 --
 -- The test suite should remain focused on pure logic and helpers while
 -- avoiding real UI rendering or runtime-only Blizzard APIs.
+--
+-- Keep this file intentionally minimal. Add stubs only when a real test needs
+-- the addon to load one step further into WoW-specific code.
 
--- Required global for addon path
+-- Required global expected by the addon's top-level file.
 EUI_HOST_ADDON = "EllesmereUI"
 EllesmereUI = {}
 
@@ -180,7 +183,7 @@ LoadAddOn = function(...) return true end
 print = print
 
 -- Load the main addon file once for tests. This is the only production file
--- required by the current test suite.
+-- required by the current test suite at the moment.
 local chunk, err = loadfile("EllesmereUI.lua")
 if not chunk then
     error("Failed to load EllesmereUI.lua: " .. tostring(err))
