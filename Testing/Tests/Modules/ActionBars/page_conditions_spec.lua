@@ -20,7 +20,9 @@ describe("Action Bars page and visibility helpers", function()
     end
 
     local function loadActionBarsNamespace(ns)
-        if not EllesmereUI.Lite then
+        local eui = _G.EllesmereUI
+        local lite = eui and eui.Lite
+        if type(lite) ~= "table" or type(lite.NewAddon) ~= "function" then
             local liteChunk, liteErr = loadfile(litePath)
             assert.is_nil(liteErr)
             liteChunk("EllesmereUI", ns)

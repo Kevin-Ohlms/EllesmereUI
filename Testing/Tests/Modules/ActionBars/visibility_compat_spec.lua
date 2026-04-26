@@ -7,7 +7,9 @@ describe("Action Bars visibility compatibility", function()
     local original_RegisterStateDriver
 
     local function loadActionBars(ns)
-        if not EllesmereUI.Lite then
+        local eui = _G.EllesmereUI
+        local lite = eui and eui.Lite
+        if type(lite) ~= "table" or type(lite.NewAddon) ~= "function" then
             local liteChunk, liteErr = loadfile(litePath)
             assert.is_nil(liteErr)
             liteChunk("EllesmereUI", ns)
