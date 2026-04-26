@@ -168,7 +168,7 @@ describe("Resource Bars exported helpers", function()
         assert.is_nil(secondary)
     end)
 
-    it("BUG: uses pain as the primary resource for Vengeance demon hunters", function()
+    it("keeps Vengeance demon hunters on fury while exposing soul fragments as the secondary resource", function()
         currentClass = "DEMONHUNTER"
         currentSpec = 2
         currentSpecID = 581
@@ -177,7 +177,7 @@ describe("Resource Bars exported helpers", function()
         local primary = _G._ERB_GetPrimaryPowerType()
         local secondary = _G._ERB_GetSecondaryResource()
 
-        assert.are.equal(18, primary)
+        assert.are.equal(17, primary)
         assert.are.same({ power = "SOUL_FRAGMENTS_VENGEANCE", max = 6, type = "custom" }, secondary)
     end)
 

@@ -226,31 +226,6 @@ Likely cause:
 
 ## Resource Bars
 
-### Vengeance demon hunters use fury instead of pain as their primary resource
-
-- Area: `EllesmereUIResourceBars/EllesmereUIResourceBars.lua`
-- Confirming spec: `Testing/Tests/Modules/ResourceBars/resource_bars_spec.lua`
-- Status: confirmed by an intentionally red test
-
-Observed behavior:
-
-- `GetPrimaryPowerType()` returns `PT.FURY` for all Demon Hunter specs.
-- Vengeance still gets its secondary soul-fragment resource, but the main bar
-  is driven as Fury instead of Pain.
-
-Likely cause:
-
-- The Demon Hunter branch in `GetPrimaryPowerType()` does not inspect the
-  active specialization before returning `PT.FURY`.
-
-Repro path used in tests:
-
-1. Stub the player as a Demon Hunter with specialization ID `581`.
-2. Call `_ERB_GetPrimaryPowerType()` from the loaded module.
-3. Observe that the helper returns `17` (`FURY`) instead of `18` (`PAIN`).
-
----
-
 ### Narrow pip bars can generate inverted slot geometry
 
 - Area: `EllesmereUIResourceBars/EllesmereUIResourceBars.lua`
