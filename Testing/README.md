@@ -96,6 +96,38 @@ green. New specs should follow the same basic rules.
 - Prefer uncovered branches with clear behavior over chasing lines that only reflect defensive guards or bootstrap noise.
 - Stop when remaining gaps are mostly artificial, environment-bound, or already represented by intentionally red bug tests.
 
+### What To Test In This Repo
+
+The addon maintainer's guidance for this repository is to focus automated tests on
+the pure logic layer and on hotspot functions where a wrong decision breaks real
+addon behavior.
+
+- Prefer functions with clear input-output contracts and little or no frame interaction.
+- Favor hotspots such as CDM routing, spell resolution, bar config parsing, and page-condition builders.
+- Treat data normalization, parsing, and table-to-table transforms as prime unit-test targets.
+- Use existing Cooldown Manager specs as the reference style for this approach.
+
+Concrete examples in the current codebase include:
+
+- `EllesmereUICooldownManager/EllesmereUICooldownManager.lua` for spell resolution helpers such as `ResolveInfoSpellID(...)`.
+- `EllesmereUICooldownManager/EllesmereUICdmSpellPicker.lua` and `EllesmereUICdmHooks.lua` for routing decisions and canonical spell selection.
+- `EllesmereUICooldownManager/EllesmereUICdmBuffBars.lua` and `EllesmereUIResourceBars/EllesmereUIResourceBars.lua` for tick or bar-config parsing helpers.
+- `EllesmereUIActionBars/EllesmereUIActionBars.lua` for page-condition and visibility-condition string builders.
+
+### What Not To Test With Unit Specs
+
+Do not spend unit-test effort on the frame system or front-end behavior that
+depends on WoW's protected UI runtime.
+
+- Avoid tests whose main value would be proving that a real frame was created, anchored, resized, reparented, or shown correctly.
+- Avoid tests that claim correctness for taint avoidance, secure state drivers, protected frames, or combat-lockdown behavior.
+- Avoid building a fake full WoW client just to simulate Blizzard UI internals that are known to behave differently in-game.
+- Cover those areas with manual in-game validation instead, and keep unit tests aimed at the logic that feeds them.
+
+In practice, this means it is better to test the helper that decides which page
+condition string to register than to test whether `RegisterStateDriver` behaved
+exactly like the live game client.
+
 ### Preferred Workflow
 
 1. Pick one concrete production file.
