@@ -449,8 +449,4 @@ describe("Quest Tracker visibility", function()
 
         assert.are.equal(2, #createdFrames[3]._events)
     end)
-
-    -- FALSE POSITIVE: the visibility field tested here was removed in v6.3.5.
-    -- The scenario can no longer occur in production.
-    pending("disabled mouseover tracker opting into shared mouseover — field removed in v6.3.5")
 end)

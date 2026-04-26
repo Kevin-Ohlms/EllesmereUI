@@ -6,34 +6,6 @@ meant to list every historical flaky or failing test forever.
 
 ## Quest Tracker
 
-### ~~Disabled mouseover tracker still registers for shared mouseover fades~~
-
-- Area: `EllesmereUIQuestTracker/EllesmereUIQuestTracker_Visibility.lua`
-- Confirming spec: `Testing/Tests/Modules/QuestTracker/visibility_spec.lua`
-- Status: **FALSE POSITIVE** — the visibility field was removed in v6.3.5
-
-Observed behavior:
-
-- A tracker whose effective visibility is already `false` can still return
-  `true` from the mouseover registration predicate when its saved config keeps
-  `visibility = "mouseover"`.
-- This means a tracker that should stay hidden can remain eligible for shared
-  mouseover fade-ins.
-
-Likely cause:
-
-- `InitVisibility()` registers a mouseover predicate that checks the saved mode
-  string but does not also gate on the effective visibility result.
-
-Repro path used in tests:
-
-1. Configure the tracker with `enabled = false` and `visibility = "mouseover"`.
-2. Make `EllesmereUI.EvalVisibility(cfg)` return `false`.
-3. Initialize visibility.
-4. Observe that the mouseover predicate still returns `true`.
-
----
-
 ### Multi-quest gossip state blocks later single-quest auto-accept on the same NPC
 
 - Area: `EllesmereUIQuestTracker/EllesmereUIQuestTracker_QoL.lua`
@@ -138,35 +110,6 @@ Likely cause:
 
 - `GetBarGlows()` uses numeric fallback returns for the early exits but seeds a
   string key when persistence is available.
-
----
-
-### ~~Adding a tracked buff bar resets threshold fields to the wrong values~~
-
-- Area: `EllesmereUICooldownManager/EllesmereUICdmBuffBars.lua`
-- Confirming spec: `Testing/Tests/Modules/CooldownManager/buff_bars_spec.lua`
-- Status: **FALSE POSITIVE** — RESET_KEYS values are boolean flags marking
-  which keys to reset, not the target values themselves. Test instrumentation
-  was assigning the flag values (true) instead of looking up TBB_DEFAULT_BAR.
-
-Observed behavior:
-
-- When a new tracked buff bar is cloned from the previous one, spell-specific
-  threshold fields are reset to `stackThresholdEnabled = true` and
-  `stackThreshold = true` instead of the default disabled / numeric settings.
-
-Likely cause:
-
-- `AddTrackedBuffBar()` marks `stackThresholdEnabled` and `stackThreshold` as
-  reset keys, but the reset logic pulls from `TBB_DEFAULT_BAR`; the test shows
-  the resulting behavior does not match the expected default shape used by the
-  rest of the bar model.
-
-Note:
-
-- The coded defaults in `TBB_DEFAULT_BAR` are currently `false` and `5`, so
-  either the clone/reset logic or the product expectation has drifted. The red
-  test currently treats this as a product bug.
 
 ---
 

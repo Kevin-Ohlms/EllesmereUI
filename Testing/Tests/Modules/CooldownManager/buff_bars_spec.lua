@@ -207,12 +207,6 @@ describe("Cooldown Manager tracked buff bar helpers", function()
         assert.are.same(positions, EllesmereUIDB.spellAssignments.specProfiles.spec.tbbPositions)
     end)
 
-    -- FALSE POSITIVE: the original test assumed RESET_KEYS values are target
-    -- values, but they are boolean flags marking which keys to reset. The
-    -- actual reset uses TBB_DEFAULT_BAR defaults. Test instrumentation
-    -- caused the flag values to be assigned instead of the defaults.
-    pending("TBB threshold reset — false positive, RESET_KEYS are flags not values")
-
     it("removes tracked buff bars safely and clamps the selected index", function()
         local ns = loadBuffBars(buildNamespace())
         local rebuildCalls = 0
