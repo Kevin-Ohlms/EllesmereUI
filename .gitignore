@@ -20,3 +20,6 @@ deps/
 
 # Local unit test artifacts
 Testing/TestResults/
+
+# Local VS Code workspace settings
+.vscode/
