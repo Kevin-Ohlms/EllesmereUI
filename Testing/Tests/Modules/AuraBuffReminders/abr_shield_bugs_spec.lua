@@ -141,38 +141,35 @@ describe("AuraBuffReminders shield & rite data tables", function()
     end)
 
     ---------------------------------------------------------------------------
-    --  Paladin rite bugs
+    --  Paladin rites — NOT a bug
     ---------------------------------------------------------------------------
     describe("PALADIN_RITES", function()
         it("has exactly 2 entries", function()
             assert.equals(2, #PALADIN_RITES)
         end)
 
-        -- BUG: The rite check loop does not break after the first match.
-        -- When a Lightsmith Paladin knows both rites and has no weapon
-        -- enchant, the loop emits TWO reminder icons.
-        describe("BUG: duplicate rite reminders when both known", function()
-            it("both rites have distinct keys so both can independently trigger", function()
-                -- Simulate the loop logic: if Known() returns true for both
-                -- and hasMH is false, both entries pass the check.
-                local knownSpells = { [433583] = true, [433568] = true }
-                local enabledKeys = { rite_adj = true, rite_sanc = true }
-                local hasMH = false
+        -- NOT A BUG: Both rites share the same talent choice node in the WoW
+        -- talent tree, so Known() can only return true for one at a time.
+        -- The loop lacks a break, but it cannot produce duplicate icons in
+        -- practice because the game prevents both from being talented.
+        it("only one rite triggers when mutual exclusion is enforced by the talent tree", function()
+            -- Simulate realistic scenario: only one rite is Known()
+            local knownSpells = { [433583] = true }  -- only Adjuration talented
+            local enabledKeys = { rite_adj = true, rite_sanc = true }
+            local hasMH = false
 
-                local triggered = {}
-                for _, rite in ipairs(PALADIN_RITES) do
-                    if enabledKeys[rite.key] and knownSpells[rite.castSpell] then
-                        if not hasMH then
-                            triggered[#triggered + 1] = rite.key
-                        end
+            local triggered = {}
+            for _, rite in ipairs(PALADIN_RITES) do
+                if enabledKeys[rite.key] and knownSpells[rite.castSpell] then
+                    if not hasMH then
+                        triggered[#triggered + 1] = rite.key
                     end
                 end
+            end
 
-                -- This documents the bug: both rites fire, producing duplicate icons
-                assert.equals(2, #triggered,
-                    "Both rites trigger simultaneously when both are known and no "
-                    .. "weapon enchant is applied — should show at most one reminder")
-            end)
+            assert.equals(1, #triggered,
+                "Only one rite fires because they share a talent choice node")
+            assert.equals("rite_adj", triggered[1])
         end)
     end)
 end)

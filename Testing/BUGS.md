@@ -6,11 +6,11 @@ meant to list every historical flaky or failing test forever.
 
 ## Quest Tracker
 
-### Disabled mouseover tracker still registers for shared mouseover fades
+### ~~Disabled mouseover tracker still registers for shared mouseover fades~~
 
 - Area: `EllesmereUIQuestTracker/EllesmereUIQuestTracker_Visibility.lua`
 - Confirming spec: `Testing/Tests/Modules/QuestTracker/visibility_spec.lua`
-- Status: confirmed by an intentionally red test
+- Status: **FALSE POSITIVE** — the visibility field was removed in v6.3.5
 
 Observed behavior:
 
@@ -38,7 +38,7 @@ Repro path used in tests:
 
 - Area: `EllesmereUIQuestTracker/EllesmereUIQuestTracker_QoL.lua`
 - Confirming spec: `Testing/Tests/Modules/QuestTracker/qol_spec.lua`
-- Status: confirmed by an intentionally red test
+- Status: **CONFIRMED — deferred** (real but low priority, marked for later)
 
 Observed behavior:
 
@@ -64,7 +64,7 @@ Repro path used in tests:
 
 - Area: `EllesmereUIQuestTracker/EllesmereUIQuestTracker_QoL.lua`
 - Confirming spec: `Testing/Tests/Modules/QuestTracker/qol_spec.lua`
-- Status: confirmed by an intentionally red test
+- Status: **CONFIRMED — deferred** (real but low priority, marked for later)
 
 Observed behavior:
 
@@ -85,11 +85,11 @@ Repro path used in tests:
 
 ## Action Bars
 
-### Legacy mouseover normalization drops the saved visible alpha
+### ~~Legacy mouseover normalization drops the saved visible alpha~~
 
 - Area: `EllesmereUIActionBars/EllesmereUIActionBars.lua`
 - Confirming spec: `Testing/Tests/Modules/ActionBars/visibility_compat_spec.lua`
-- Status: confirmed by an intentionally red test when run in isolation
+- Status: **FIXED** by developer (along with other mouseover action bar issues)
 
 Observed behavior:
 
@@ -103,11 +103,11 @@ Likely cause:
 
 ---
 
-### Copying legacy mouseover settings can zero the destination visible alpha
+### ~~Copying legacy mouseover settings can zero the destination visible alpha~~
 
 - Area: `EllesmereUIActionBars/EllesmereUIActionBars.lua`
 - Confirming spec: `Testing/Tests/Modules/ActionBars/visibility_compat_spec.lua`
-- Status: confirmed by an intentionally red test when run in isolation
+- Status: **FIXED** by developer (along with other mouseover action bar issues)
 
 Observed behavior:
 
@@ -121,11 +121,11 @@ Likely cause:
 
 ## Cooldown Manager
 
-### Bar glow fallback uses a different default bar shape than persisted storage
+### ~~Bar glow fallback uses a different default bar shape than persisted storage~~
 
 - Area: `EllesmereUICooldownManager/EllesmereUICdmBarGlows.lua`
 - Confirming spec: `Testing/Tests/Modules/CooldownManager/bar_glows_spec.lua`
-- Status: confirmed by an existing red test
+- Status: **FIXED** by developer
 
 Observed behavior:
 
@@ -141,11 +141,13 @@ Likely cause:
 
 ---
 
-### Adding a tracked buff bar resets threshold fields to the wrong values
+### ~~Adding a tracked buff bar resets threshold fields to the wrong values~~
 
 - Area: `EllesmereUICooldownManager/EllesmereUICdmBuffBars.lua`
 - Confirming spec: `Testing/Tests/Modules/CooldownManager/buff_bars_spec.lua`
-- Status: confirmed by an existing red test
+- Status: **FALSE POSITIVE** — RESET_KEYS values are boolean flags marking
+  which keys to reset, not the target values themselves. Test instrumentation
+  was assigning the flag values (true) instead of looking up TBB_DEFAULT_BAR.
 
 Observed behavior:
 
@@ -168,11 +170,11 @@ Note:
 
 ---
 
-### Switching cdStateEffect away from hidden modes can leave icons permanently hidden
+### ~~Switching cdStateEffect away from hidden modes can leave icons permanently hidden~~
 
 - Area: `EllesmereUICooldownManager/EllesmereUICdmHooks.lua`
 - Confirming spec: `Testing/Tests/Modules/CooldownManager/hooks_resolution_spec.lua`
-- Status: confirmed by an intentionally red test
+- Status: **FIXED** by developer (locally)
 
 Observed behavior:
 
@@ -202,7 +204,7 @@ Repro path used in tests:
 
 - Area: `EllesmereUICooldownManager/EllesmereUICdmSpellPicker.lua`
 - Confirming spec: `Testing/Tests/Modules/CooldownManager/spell_picker_spec.lua`
-- Status: confirmed by an existing red test
+- Status: **WON'T FIX** — edge case with no visible user impact
 
 Observed behavior:
 
@@ -222,7 +224,7 @@ Likely cause:
 
 - Area: `EllesmereUICooldownManager/EllesmereUICdmSpellPicker.lua`
 - Confirming spec: `Testing/Tests/Modules/CooldownManager/spell_picker_spec.lua`
-- Status: confirmed by an existing red test
+- Status: **WON'T FIX** — edge case with no visible user impact
 
 Observed behavior:
 
@@ -241,7 +243,7 @@ Likely cause:
 
 - Area: `EllesmereUICooldownManager/EllesmereUICdmSpellPicker.lua`
 - Confirming spec: `Testing/Tests/Modules/CooldownManager/spell_picker_spec.lua`
-- Status: confirmed by an existing red test
+- Status: **WON'T FIX** — edge case with no visible user impact
 
 Observed behavior:
 
@@ -287,11 +289,11 @@ None currently listed in this file.
 
 ## AuraBuffReminders
 
-### Shaman shield reminder always casts Lightning Shield for Resto (should be Water Shield)
+### ~~Shaman shield reminder always casts Lightning Shield for Resto (should be Water Shield)~~
 
 - Area: `EllesmereUIAuraBuffReminders/EllesmereUIAuraBuffReminders.lua`
 - Confirming spec: `Testing/Tests/Modules/AuraBuffReminders/abr_shield_bugs_spec.lua`
-- Status: confirmed by test (documented bug)
+- Status: **FIXED** by developer
 
 Observed behavior:
 
@@ -308,11 +310,11 @@ Likely cause:
 
 ---
 
-### No shield reminder for Ele/Enh Shaman without Elemental Orbit
+### ~~No shield reminder for Ele/Enh Shaman without Elemental Orbit~~
 
 - Area: `EllesmereUIAuraBuffReminders/EllesmereUIAuraBuffReminders.lua`
 - Confirming spec: `Testing/Tests/Modules/AuraBuffReminders/abr_shield_bugs_spec.lua`
-- Status: confirmed by test (documented bug)
+- Status: **FIXED** by developer
 
 Observed behavior:
 
@@ -322,11 +324,12 @@ Observed behavior:
 
 ---
 
-### Paladin rite loop emits duplicate reminder icons when both rites are known
+### ~~Paladin rite loop emits duplicate reminder icons when both rites are known~~
 
 - Area: `EllesmereUIAuraBuffReminders/EllesmereUIAuraBuffReminders.lua`
 - Confirming spec: `Testing/Tests/Modules/AuraBuffReminders/abr_shield_bugs_spec.lua`
-- Status: confirmed by test (documented bug)
+- Status: **FALSE POSITIVE** — both rites share the same talent choice node;
+  the WoW talent system prevents both from being known simultaneously
 
 Observed behavior:
 
@@ -342,11 +345,12 @@ Likely cause:
 
 ---
 
-### Pre-combat aura snapshot causes stale results for expired raid buffs in combat
+### ~~Pre-combat aura snapshot causes stale results for expired raid buffs in combat~~
 
 - Area: `EllesmereUIAuraBuffReminders/EllesmereUIAuraBuffReminders.lua`
 - Confirming spec: `Testing/Tests/Modules/AuraBuffReminders/abr_combat_snapshot_spec.lua`
-- Status: confirmed by test (documented bug)
+- Status: **INTENTIONAL DESIGN** — secret values block certain raid buffs from
+  being queried in combat; the snapshot ensures reminders reappear after combat
 
 Observed behavior:
 
@@ -363,11 +367,11 @@ Likely cause:
 
 ## Resource Bars
 
-### Cast bar progress divides by zero for zero-duration casts
+### ~~Cast bar progress divides by zero for zero-duration casts~~
 
 - Area: `EllesmereUIResourceBars/EllesmereUIResourceBars.lua`
 - Confirming spec: `Testing/Tests/Modules/ResourceBars/castbar_divzero_spec.lua`
-- Status: confirmed by test (documented bug)
+- Status: **FIXED** by developer
 
 Observed behavior:
 
